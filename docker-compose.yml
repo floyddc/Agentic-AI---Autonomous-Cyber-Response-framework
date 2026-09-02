@@ -1,0 +1,53 @@
+services:
+  ollama:
+    build:
+      context: ./ollama
+
+    container_name: ollama
+
+    ports:
+      - "11434:11434"
+
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "2048"
+
+    volumes:
+      - ollama_data:/root/.ollama
+
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    restart: unless-stopped
+
+  python:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+
+    container_name: python-app
+
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+
+    volumes:
+      - ./python:/app
+
+    working_dir: /app
+
+    stdin_open: true
+    tty: true
+
+    command: python main.py
+
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
