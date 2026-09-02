@@ -5,11 +5,13 @@
 - Check modelli: `docker exec ollama ollama list`
 - Avvio: `docker exec -it ollama ollama run qwen3:4b-instruct`
 - Utilizzo memoria: `docker exec -it ollama ollama ps`
-- Crazione modello nothink (ora dovrebbe stare in `entrypoint.sh`): `docker exec ollama ollama create qwen3:4b-nothink -f /Modelfile`
 
-docker compose down
-docker compose build --no-cache ollama
-docker compose up -d --force-recreate ollama
+<br><br>
+
+
+- `docker compose down`
+- `docker compose build --no-cache ollama`
+- `docker compose up -d --force-recreate ollama`
 
 
 - Allocazione risorse: `notepad "$env:USERPROFILE\.wslconfig"` da PS
@@ -19,10 +21,84 @@ docker compose up -d --force-recreate ollama
   processors=8
   swap=4GB
   ```
+  - `memory=8GB` se hai almeno 16GB di RAM.
   - Riavvia WSL: `wsl --shutdown` e riavvia Docker desktop
-  - Check: `wsl -d Ubuntu-24.04 free -h`
+  - Check: `wsl -d <WSL DISTRO>` -> `egrep '^processor' /proc/cpuinfo | sort -u | wc -l`
 
-su CPU: qwen3.8 quantizzato, fine tuning per disattivare thinking
-da affiancare dflash2
+ ```
+                  ┌──────────────┐
+                  │ EDR / SIEM   │
+                  │ XDR          │
+                  └──────┬───────┘
+                         │
+                       ALERT
+                         ▼
+              ┌────────────────────┐
+              │ INCIDENT REGISTRY  │
+              │                    │
+              │ Alert / Case       │
+              └─────────┬──────────┘
+                        │
+                       CASE
+                        ▼
+              ┌────────────────────┐
+              │ AI TRIAGE &        │
+              │ CONTAINMENT        │
+              └─────────┬──────────┘
+                        │
+                 Knowledge Query
+                        ▼
+              ┌────────────────────┐
+              │ KNOWLEDGE LAYER    │
+              │                    │
+              │ RAG                │
+              │ MITRE / Sigma      │
+              │ Runbooks / TI      │
+              │ Historical Cases   │
+              └─────────┬──────────┘
+                        │
+                     Context
+                        ▼
+              ┌────────────────────┐
+              │ DECISION AGENTS    │
+              └─────────┬──────────┘
+                        ▼
+              ┌────────────────────┐
+              │ ORCHESTRATION      │
+              └─────────┬──────────┘
+                        ▼
+              ┌────────────────────┐
+              │ RESPONSE           │
+              └─────────┬──────────┘
+                        │
+                        └────────────► Incident Registry
 
-oppure direttamente qwen3.8flash
+ ```
+
+  ```
+EDR/SIEM/XDR
+     ↓
+┌───────────────────────┐
+│ AI PLATFORM           │
+│                       │
+│ AI Triage             │
+│ Ollama + Qwen3        │
+│ RAG / Vector DB       │
+│ Incident Registry     │
+│ Decision Agents       │
+│ Orchestrator          │
+└──────────┬────────────┘
+           ↓
+         XDR
+           ↓
+ Endpoint / Network / Cloud
+  ```
+
+Componente Responsabilità<br>
+EDR / SIEM / XDR	    Monitoraggio e detection<br>
+Incident Registry	Gestione di alert e case<br>
+AI Triage & Containment	Analisi e investigazione<br>
+RAG / Knowledge Layer	Fornitura di conoscenza/evidenze<br>
+Decision Agents	Decisione sulla risposta<br>
+Orchestration	Esecuzione/coordinamento<br>
+Response	Contenimento effettivo

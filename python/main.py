@@ -7,27 +7,27 @@ messages = [
     {
         "role": "system",
         "content": (
-            "Sei un assistente italiano. "
-            "Rispondi in modo chiaro, conciso e diretto."
+            "You are an english assistant. "
+            "Answer clearly, concisely, and directly.."
         )
     }
 ]
 
 print("=" * 50)
-print("       Chat con Qwen3:4b")
+print("       Chat with Qwen3:4b-instruct")
 print("=" * 50)
-print("Scrivi 'exit' per uscire.\n")
+print("Type 'exit' to close this chat.\n")
 
 
 while True:
     try:
-        user_input = input("Tu: ").strip()
+        user_input = input("You: ").strip()
 
         if not user_input:
             continue
 
         if user_input.lower() in ("exit", "quit", "esci"):
-            print("Ciao!")
+            print("Hi!")
             break
 
         messages.append({
@@ -35,8 +35,7 @@ while True:
             "content": user_input
         })
 
-        print("\n[DEBUG] Invio richiesta a Qwen3...")
-        print("[DEBUG] Qwen3 sta elaborando...\n")
+        print("\n[DEBUG] Request sent to Qwen3...")
 
         start_time = time.time()
 
@@ -65,8 +64,7 @@ while True:
         elapsed = time.time() - start_time
 
         print("\n")
-        print(f"[DEBUG] Risposta completata in {elapsed:.2f} secondi.")
-        print(f"[DEBUG] Caratteri generati: {len(answer)}")
+        print(f"[DEBUG] Completed in {elapsed:.2f} seconds.")
         print()
 
         messages.append({
@@ -75,8 +73,8 @@ while True:
         })
 
     except KeyboardInterrupt:
-        print("\n\nCiao!")
+        print("\n\Hi!")
         break
 
     except Exception as e:
-        print(f"\n[DEBUG] Errore: {e}\n")
+        print(f"\n[DEBUG] Error: {e}\n")
