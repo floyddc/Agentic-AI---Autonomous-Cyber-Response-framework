@@ -1,1 +1,7 @@
 ollama>=0.6.0
+chromadb>=0.5.0
+psycopg2-binary>=2.9.9
+datasets>=2.19.0
+requests>=2.31.0
+pandas>=2.2.0
+tqdm>=4.66.0

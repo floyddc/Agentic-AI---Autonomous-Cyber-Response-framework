@@ -1,5 +1,10 @@
 #!/bin/sh
 
+set -eu
+
+QWEN_MODEL="${CHAT_MODEL:-qwen3:4b-instruct}"
+WARMUP_MARKER="/tmp/qwen-warmup-complete"
+
 ollama serve &
 
 echo "Waiting for Ollama..."
@@ -11,11 +16,25 @@ done
 
 echo "Ollama ready."
 
-if ! ollama list | grep -q "qwen3:4b-instruct"; then
-    echo "Downloading qwen3:4b-instruct..."
-    ollama pull qwen3:4b-instruct
+if ! ollama list | grep -q "${QWEN_MODEL}"; then
+    echo "Downloading ${QWEN_MODEL}..."
+    ollama pull "${QWEN_MODEL}"
 else
-    echo "qwen3:4b-instruct already set."
+    echo "${QWEN_MODEL} already set."
+fi
+
+if ! ollama list | grep -q "multilingual-e5-small"; then
+    echo "Downloading qllama/multilingual-e5-small..."
+    ollama pull qllama/multilingual-e5-small
+else
+    echo "qllama/multilingual-e5-small already set."
+fi
+
+if [ ! -f "${WARMUP_MARKER}" ]; then
+    echo "Warming up ${QWEN_MODEL}..."
+    ollama run "${QWEN_MODEL}" "Warm-up" >/dev/null
+    touch "${WARMUP_MARKER}"
+    echo "${QWEN_MODEL} warm-up complete."
 fi
 
 wait

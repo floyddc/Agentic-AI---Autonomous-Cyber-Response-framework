@@ -15,7 +15,33 @@ services:
       - ollama_data:/root/.ollama
 
     healthcheck:
-      test: ["CMD", "ollama", "list"]
+      test: ["CMD-SHELL", "test -f /tmp/qwen-warmup-complete"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+
+    container_name: postgres
+
+    ports:
+      - "5432:5432"
+
+    environment:
+      POSTGRES_USER: cyberresponse
+      POSTGRES_PASSWORD: cyberresponse
+      POSTGRES_DB: incident_registry 
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyberresponse -d incident_registry"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -33,12 +59,24 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
 
     environment:
       OLLAMA_HOST: http://ollama:11434
+      EMBEDDING_MODEL: qllama/multilingual-e5-small
+      CHAT_MODEL: qwen3:4b-instruct
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: incident_registry
+      POSTGRES_KNOWLEDGE_DB: knowledge
+      POSTGRES_USER: cyberresponse
+      POSTGRES_PASSWORD: cyberresponse
 
     volumes:
       - ./python:/app
+      - ./RAG:/app/RAG
+      - ./knowledge:/app/knowledge
 
     working_dir: /app
 
@@ -51,3 +89,4 @@ services:
 
 volumes:
   ollama_data:
+  pgdata:
