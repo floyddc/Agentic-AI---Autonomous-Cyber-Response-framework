@@ -1,6 +1,7 @@
 from typing import List
 from . import config
 from .embeddings import embed_query
+from .reranker import rerank
 from .vectorstore import get_collection
 
 def retrieve(query: str, top_k: int = config.TOP_K) -> List[dict]:
@@ -9,13 +10,15 @@ def retrieve(query: str, top_k: int = config.TOP_K) -> List[dict]:
     if collection.count() == 0:
         return []
 
+    candidate_k = min(max(top_k, config.RERANK_CANDIDATES), collection.count())
     query_embedding = embed_query(query)
-    results = collection.query(query_embeddings=[query_embedding], n_results=min(top_k, collection.count()))
+    results = collection.query(query_embeddings=[query_embedding], n_results=candidate_k)
 
     hits = []
     for doc, meta, dist in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
         hits.append({"text": doc, "metadata": meta, "distance": dist})
-    return hits
+
+    return rerank(query, hits, top_k=top_k)
 
 def format_context(hits: List[dict]) -> str:
     if not hits:

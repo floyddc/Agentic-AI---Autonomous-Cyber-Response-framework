@@ -34,3 +34,7 @@ COLLECTION_NAME = "cyber_response_kb"
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 50
 TOP_K = 5
+
+# Cross-encoder reranker applied to the top RERANK_CANDIDATES results retrieved from Chroma.
+RERANKER_MODEL = os.environ.get("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L2-v2")
+RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))

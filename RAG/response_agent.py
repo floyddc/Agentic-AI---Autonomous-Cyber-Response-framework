@@ -20,8 +20,9 @@ class ResponseAgent:
         self.client = Client(host=host)
         self.registry = registry or IncidentRegistry()
 
-    def ask(self, question: str, incident_id: int = None) -> str:
-        context = build_context(question)
+    def ask(self, question: str, context: str = None, incident_id: int = None) -> str:
+        if context is None:
+            context = build_context(question)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},

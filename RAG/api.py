@@ -12,7 +12,7 @@ class RAGService:
 
     def query(self, question: str, warmup: bool = True, incident_id: int = None) -> Dict[str, Any]:
         context = build_context(question)
-        answer = self.response_agent.ask(question, incident_id=incident_id)
+        answer = self.response_agent.ask(question, context=context, incident_id=incident_id)
 
         return {
             "question": question,

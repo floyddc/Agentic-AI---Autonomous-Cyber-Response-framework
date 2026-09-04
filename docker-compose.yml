@@ -66,6 +66,8 @@ services:
       OLLAMA_HOST: http://ollama:11434
       EMBEDDING_MODEL: qllama/multilingual-e5-small
       CHAT_MODEL: qwen3:4b-instruct
+      RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L2-v2
+      HF_HOME: /root/.cache/huggingface
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: incident_registry
@@ -74,6 +76,7 @@ services:
       POSTGRES_PASSWORD: cyberresponse
 
     volumes:
+      - hf_cache:/root/.cache/huggingface
       - ./python:/app
       - ./RAG:/app/RAG
       - ./knowledge:/app/knowledge
@@ -90,3 +93,4 @@ services:
 volumes:
   ollama_data:
   pgdata:
+  hf_cache:

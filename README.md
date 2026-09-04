@@ -60,6 +60,9 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
 - Costruisci/aggiorna l'indice vettoriale (persistito in `knowledge/indices/`):
   `docker exec -it python-app python -m RAG.build_index`
+
+- Test reranker:
+  - `docker exec python python -c "from RAG.context_builder import build_context; print(build_context('How can PowerShell be used for execution?'))"`
   
 - Avvia la chat con retrieval-augmented generation. Prima del prompt interattivo il modello viene riscaldato automaticamente:
   `docker exec -it python-app python -m RAG.rag_chat`
