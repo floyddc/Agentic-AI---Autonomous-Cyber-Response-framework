@@ -1,7 +1,7 @@
-from .response_agent import ResponseAgent
+from .api import query_rag
 
 def ask(question: str) -> str:
-    return ResponseAgent().ask(question)
+    return query_rag(question)["answer"]
 
 def main():
     print("RAG chat - type 'exit' to quit.\n")

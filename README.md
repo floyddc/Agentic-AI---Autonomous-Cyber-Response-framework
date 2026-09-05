@@ -57,8 +57,12 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 - Costruisci/aggiorna l'indice vettoriale (persistito in `knowledge/indices/`):
   `docker exec -it python-app python -m RAG.build_index`
 
-- Test reranker:
-  - `docker exec python-app python -c "from RAG.context_builder import build_context; print(build_context('How can PowerShell be used for execution?'))"`
-  
-- Avvia la chat con retrieval-augmented generation. Prima del prompt interattivo il modello viene riscaldato automaticamente:
-  `docker exec -it python-app python -m RAG.rag_chat`
+- Test del solo **Retrieve Agent** (recupero contesto da ChromaDB + reranker, senza LLM):
+  `docker exec -it python-app python -m RAG.retrieve_agent "How can PowerShell be used for execution?"`
+
+- Test del solo **Response Agent** (generazione con Qwen fornendo un contesto):
+  `docker exec python-app python -c "from RAG.response_agent import ResponseAgent; print(ResponseAgent().ask('Come isolare un host?', context='Policy: Isolare via EDR API in caso di malware.'))"`
+
+- Test del **flusso completo** (Retrieve Agent + Response Agent):
+  - Singola query: `docker exec python-app python -c "from RAG.api import query_rag; print(query_rag('How can PowerShell be used for execution?'))"`
+  - Chat interattiva: `docker exec -it python-app python -m RAG.rag_chat`

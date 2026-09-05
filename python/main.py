@@ -73,7 +73,7 @@ while True:
         })
 
     except KeyboardInterrupt:
-        print("\n\Hi!")
+        print("\nHi!")
         break
 
     except Exception as e:
