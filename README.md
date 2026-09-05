@@ -22,15 +22,11 @@
 
 ## Come avviare
 - Creazione container: `docker compose build --no-cache`
-- Avvio container: `docker compose up -d`
-- Download Qwen: `docker exec -it ollama ollama pull qwen3:4b-instruct` 
-- Download embedding model (per il RAG): `docker exec -it ollama ollama pull qllama/multilingual-e5-small`
+- Avvio container: `docker compose up`
+  - Lo script all'avvio dovrebbe scaricare subito l'LLM (ed effettuarne il warm-up) e il modello di embeddings.
 - Check modelli: `docker exec ollama ollama list`
-- Warm-up iniziale di Qwen (consigliato per evitare il primo avvio molto lento):
-  `docker exec -it ollama ollama run qwen3:4b-instruct`
-  - una volta caricato il modello, esci con `Ctrl+D` oppure scrivendo un messaggio e poi chiudendo la sessione
 - Utilizzo memoria: `docker exec -it ollama ollama ps`
-- Il sistema RAG esegue anche un warm-up automatico prima della chat, così il primo prompt reale è significativamente più veloce.
+- Check del filesystem dei container: `docker exec -it <CONTAINER_NAME> bash`
 
 ## Stack minimale
 Servizi attivi in [docker-compose.yml](docker-compose.yml):
@@ -62,7 +58,7 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
   `docker exec -it python-app python -m RAG.build_index`
 
 - Test reranker:
-  - `docker exec python python -c "from RAG.context_builder import build_context; print(build_context('How can PowerShell be used for execution?'))"`
+  - `docker exec python-app python -c "from RAG.context_builder import build_context; print(build_context('How can PowerShell be used for execution?'))"`
   
 - Avvia la chat con retrieval-augmented generation. Prima del prompt interattivo il modello viene riscaldato automaticamente:
   `docker exec -it python-app python -m RAG.rag_chat`
