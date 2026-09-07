@@ -19,7 +19,7 @@ def reset_collection():
 
     try:
         client.delete_collection(config.COLLECTION_NAME)
-    except ValueError:
+    except chromadb.errors.NotFoundError:
         pass
 
     return client.get_or_create_collection(
