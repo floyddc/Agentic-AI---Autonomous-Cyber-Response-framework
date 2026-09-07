@@ -41,9 +41,9 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
   `knowledge/policies/` e `knowledge/actions_catalog/` (file `.md`, `.txt` o `.json`).
 
 - In alternativa, scarica dataset reali da HuggingFace ed esegui la conversione automatica nel formato `knowledge/`:
-  `docker exec -it python-app python -m RAG.fetch_datasets --mitre --telemetry`
-  - `--mitre`: [sarahwei/cyber_MITRE_attack_tactics-and-techniques](https://huggingface.co/datasets/sarahwei/cyber_MITRE_attack_tactics-and-techniques) (654 Q&A su tattiche/tecniche MITRE ATT&CK v15) → `knowledge/base/mitre_attack/`.
-  - `--telemetry`: campione del dataset [An24/IntrusionDetectionSystem-NSL_KDD](https://huggingface.co/datasets/An24/IntrusionDetectionSystem-NSL_KDD) (traffico di rete etichettato attacco/normale) → `knowledge/raw_data/xrd_telemetry/nsl_kdd_sample.json` (dati grezzi, non indicizzati dal RAG).
+  - `docker exec -it python-app python -m RAG.fetch_datasets --mitre --telemetry`
+    - `--mitre`: [sarahwei/cyber_MITRE_attack_tactics-and-techniques](https://huggingface.co/datasets/sarahwei/cyber_MITRE_attack_tactics-and-techniques) (654 Q&A su tattiche/tecniche MITRE ATT&CK v15) → `knowledge/base/mitre_attack/`.
+    - `--telemetry`: campione del dataset [An24/IntrusionDetectionSystem-NSL_KDD](https://huggingface.co/datasets/An24/IntrusionDetectionSystem-NSL_KDD) (traffico di rete etichettato attacco/normale) → `knowledge/raw_data/xrd_telemetry/nsl_kdd_sample.json` (dati grezzi, non indicizzati dal RAG).
 
 - Seed del Docs store da filesystem a Postgres (da ripetere quando cambiano i file sotto `knowledge/base/*`):
    - `docker exec -it python-app python -m RAG.seed_knowledge_base`
