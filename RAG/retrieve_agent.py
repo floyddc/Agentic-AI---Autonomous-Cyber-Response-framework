@@ -1,10 +1,12 @@
 import json
 import logging
 import sys
+import time
 from typing import Any, Dict
 from . import config
 from .context_builder import build_context
 from .incident_registry import IncidentRegistry
+from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ class RetrieveAgent:
     def retrieve(self, incident_or_query: Any, incident_id: int = None) -> Dict[str, Any]:
 
         q = self._incident_to_query(incident_or_query)
+        start = time.perf_counter()
         try:
             context = build_context(q, top_k=self.top_k)
             try:
@@ -56,9 +59,18 @@ class RetrieveAgent:
                 )
             except Exception:
                 self.logger.exception("Failed to log retrieve_agent action to the incident registry")
+            logging_agent.record(
+                "retrieve_agent", "retrieve", status="success",
+                duration_ms=(time.perf_counter() - start) * 1000, incident_id=incident_id,
+            )
             return {"query": q, "context": context}
         except Exception as exc:
             self.logger.exception("Retrieve failed")
+            logging_agent.record(
+                "retrieve_agent", "retrieve", status="error",
+                duration_ms=(time.perf_counter() - start) * 1000, incident_id=incident_id,
+                details={"error": str(exc)},
+            )
             return {"query": q, "error": str(exc)}
 
 

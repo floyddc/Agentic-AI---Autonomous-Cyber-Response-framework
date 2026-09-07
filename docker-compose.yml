@@ -49,6 +49,22 @@ services:
 
     restart: unless-stopped
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+
+    container_name: otel-collector
+
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml
+
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+    restart: unless-stopped
+
   python:
     build:
       context: ./python
@@ -61,6 +77,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
     environment:
       OLLAMA_HOST: http://ollama:11434
@@ -75,6 +93,9 @@ services:
       POSTGRES_KNOWLEDGE_DB: knowledge
       POSTGRES_USER: cyberresponse
       POSTGRES_PASSWORD: cyberresponse
+      OTEL_SERVICE_NAME: cyber-response-agents
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_METRIC_EXPORT_INTERVAL_MS: "5000"
 
     volumes:
       - hf_cache:/root/.cache/huggingface

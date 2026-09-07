@@ -3,6 +3,7 @@ from ollama import Client
 from . import config
 from .context_builder import build_context
 from .incident_registry import IncidentRegistry
+from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
 
@@ -21,26 +22,27 @@ class ResponseAgent:
         self.registry = registry or IncidentRegistry()
 
     def ask(self, question: str, context: str = None, incident_id: int = None) -> str:
-        if context is None:
-            context = build_context(question)
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
-        ]
-        response = self.client.chat(model=self.model, messages=messages)
-        answer = response["message"]["content"]
+        with logging_agent.track("response_agent", "ask", incident_id=incident_id):
+            if context is None:
+                context = build_context(question)
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+            ]
+            response = self.client.chat(model=self.model, messages=messages)
+            answer = response["message"]["content"]
 
-        try:
-            self.registry.log_action(
-                incident_id,
-                agent="response_agent",
-                action="generated_response",
-                details={"question": question, "answer": answer},
-            )
-        except Exception:
-            logger.exception("Failed to log response_agent action to the incident registry")
+            try:
+                self.registry.log_action(
+                    incident_id,
+                    agent="response_agent",
+                    action="generated_response",
+                    details={"question": question, "answer": answer},
+                )
+            except Exception:
+                logger.exception("Failed to log response_agent action to the incident registry")
 
-        return answer
+            return answer
 
 
 def ask_response(question: str, model: str = config.CHAT_MODEL, incident_id: int = None) -> str:

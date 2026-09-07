@@ -38,3 +38,9 @@ TOP_K = 5
 # Cross-encoder reranker applied to the top RERANK_CANDIDATES results retrieved from Chroma.
 RERANKER_MODEL = os.environ.get("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L2-v2")
 RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
+
+# Logging Agent: exports per-component metrics (counters/histograms) via OpenTelemetry,
+# in addition to persisting them in the `agent_metrics` table (operational DB).
+OTEL_SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", "cyber-response-agents")
+OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
+OTEL_METRIC_EXPORT_INTERVAL_MS = int(os.environ.get("OTEL_METRIC_EXPORT_INTERVAL_MS", "5000"))

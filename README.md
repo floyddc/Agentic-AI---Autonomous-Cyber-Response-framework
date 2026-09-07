@@ -33,6 +33,7 @@ Servizi attivi in [docker-compose.yml](docker-compose.yml):
 - `ollama` — model server (LLM chat + embedding).
 - `python-app` — orchestrator/agenti ([RAG/](RAG) + [python/](python)), connesso a `ollama` e `postgres`.
 - `postgres` — Incident Registry + Audit Store (schema iniziale in [postgres/init/001_incident_registry.sql](postgres/init/001_incident_registry.sql)), esposto su `localhost:5432` (utente/password/db: `cyberresponse` / `cyberresponse` / `incident_registry`).
+- `otel-collector` — OpenTelemetry Collector che riceve le metriche del Logging Agent via OTLP (porte `4317` gRPC / `4318` HTTP) e le stampa a log (config in [otel-collector/config.yaml](otel-collector/config.yaml)), pronto per essere ripuntato su un backend reale (es. Prometheus/Grafana).
 
 ## RAG
 Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato nel container `python-app`).
@@ -66,3 +67,25 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 - Test del **flusso completo** (Retrieve Agent + Response Agent):
   - Singola query: `docker exec python-app python -c "from RAG.api import query_rag; print(query_rag('How can PowerShell be used for execution?'))"`
   - Chat interattiva: `docker exec -it python-app python -m RAG.rag_chat`
+
+## Logging Agent
+Il **Logging Agent** ([RAG/logging_agent.py](RAG/logging_agent.py)) riceve, correla e salva le metriche di
+tutti i componenti del sistema (Retrieve Agent, Response Agent, Incident Registry, ...). Ogni
+event record viene scritto su Postgres nella tabella `agent_metrics` e, in parallelo, esportato come metrica OpenTelemetry (counter
+`agent_events_total`, histogram `agent_duration_ms`) verso il servizio `otel-collector`.
+
+- Gli agenti esistenti (`RetrieveAgent`, `ResponseAgent`, `IncidentRegistry`) sono già
+  strumentati: ogni chiamata a `retrieve`, `ask`, `create_incident`, `close_incident` e
+  `log_action` produce automaticamente una metrica (componente, azione, esito, durata).
+- Per strumentare un nuovo componente, basta avvolgerne il codice con il context manager:
+  ```python
+  from RAG.logging_agent import logging_agent
+
+  with logging_agent.track("multi_agent_orchestration", "run_cycle", incident_id=incident_id):
+      ...
+  ```
+- Ispeziona le ultime metriche salvate su Postgres:
+  `docker exec -it python-app python -m RAG.logging_agent --tail 20`
+  - oppure via psql: `docker exec -it postgres psql -U cyberresponse -d incident_registry -c "SELECT * FROM agent_metrics ORDER BY created_at DESC LIMIT 20;"`
+- Ispeziona le metriche esportate via OpenTelemetry (debug exporter):
+  `docker logs otel-collector`
