@@ -1,0 +1,82 @@
+{
+  "actions": [
+    {
+      "action": "isolate_host",
+      "description": "Isolate an endpoint from the network via EDR to stop lateral movement.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "block_ip",
+      "description": "Block an IP address at the firewall/XDR to stop C2 or exfiltration traffic.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "block_network_traffic",
+      "description": "Block network traffic to or from a suspicious IP, domain, port, or protocol at the firewall/XDR.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "monitor_process_network_traffic",
+      "description": "Increase monitoring of network connections created by processes on the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "enable_ssl_tls_inspection",
+      "description": "Enable SSL/TLS inspection for the relevant traffic scope to detect encrypted C2 communication.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "audit_power_shell_executions",
+      "description": "Collect and review PowerShell execution history and command-line telemetry on the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "log_and_alert_on_unusual_data_flows",
+      "description": "Create enhanced logging and alerting for unusual inbound or outbound data flows from the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "kill_process",
+      "description": "Terminate a malicious process on the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "critical"
+    },
+    {
+      "action": "quarantine_file",
+      "description": "Quarantine a malicious file/artifact detected on the host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "critical"
+    },
+    {
+      "action": "disable_account",
+      "description": "Disable a compromised user/service account in the IdP.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "reset_credentials",
+      "description": "Force a credential reset for a compromised account.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "notify_analyst",
+      "description": "Escalate the incident to a human SOC analyst without taking automated action.",
+      "required_fields": [],
+      "max_auto_severity": "critical"
+    },
+    {
+      "action": "no_action",
+      "description": "No remediation required, close as benign/false positive.",
+      "required_fields": [],
+      "max_auto_severity": "critical"
+    }
+  ]
+}

@@ -5,6 +5,13 @@ from .db import cursor as _cursor
 from .knowledge_store import IncidentHistoryStore
 from .logging_agent import logging_agent
 
+# Incident lifecycle: new -> triage -> triaged -> retrieve -> validation -> validated -> response -> responded
+STATUS_FLOW = [
+    "new", "triage", "triaged", "retrieve",
+    "validation", "validated", "response", "responded",
+]
+STATUS_FAILED = "failed"
+
 
 class IncidentRegistry:
 
@@ -37,6 +44,19 @@ class IncidentRegistry:
             cur.execute(
                 "UPDATE incidents SET status = %s, updated_at = now() WHERE id = %s",
                 (status, incident_id),
+            )
+
+    def update_fields(self, incident_id: int, **fields: Any) -> None:
+        """Updates a subset of incident columns (e.g. summary/description/severity) in place."""
+        allowed = {"summary", "description", "severity", "external_id"}
+        updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+        if not updates:
+            return
+        set_clause = ", ".join(f"{col} = %s" for col in updates)
+        with _cursor(config.POSTGRES_OPERATIONAL_DB) as cur:
+            cur.execute(
+                f"UPDATE incidents SET {set_clause}, updated_at = now() WHERE id = %s",
+                (*updates.values(), incident_id),
             )
 
     def get_incident(self, incident_id: int) -> Optional[Dict[str, Any]]:

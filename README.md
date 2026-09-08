@@ -50,7 +50,7 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
    - `docker exec -it python-app python -m RAG.seed_knowledge_base`
 
      - `docker exec -it postgres psql -U cyberresponse -d incident_registry` per controllare il DB `incident_registry`. 
-     - `docker exec -it postgres psql -U cyberresponse -d knowledge` per controllare il DB `incident_registry`. 
+    - `docker exec -it postgres psql -U cyberresponse -d knowledge` per controllare il DB `knowledge`. 
      - `\dt` per vedere le tabelle.
      - `\q` per uscire.
      - Poi sintassi SQL.
@@ -67,6 +67,87 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 - Test del **flusso completo** (Retrieve Agent + Response Agent):
   - Singola query: `docker exec python-app python -c "from RAG.api import query_rag; print(query_rag('How can PowerShell be used for execution?'))"`
   - Chat interattiva: `docker exec -it python-app python -m RAG.rag_chat`
+
+## Test del workflow orchestrato
+L'`OrchestratorAgent` gestisce un alert dall'ingestion fino alla risposta automatizzata con il seguente flusso:
+
+```text
+new -> triage -> triaged -> retrieve -> validation -> validated -> response -> responded
+```
+
+In caso di errore tecnico o di piano d'azione non approvato dalla policy, lo stato diventa `failed`.
+
+### 1. Verifica dei servizi
+Da PowerShell, nella directory principale del progetto:
+
+```powershell
+docker compose up -d
+docker compose ps
+docker inspect --format='{{.State.Health.Status}}' ollama
+docker inspect --format='{{.State.Health.Status}}' postgres
+```
+
+Prima di eseguire il workflow, `ollama` e `postgres` devono risultare healthy e `python-app` deve essere in esecuzione.
+
+### 2. Prepara un alert EDR di test
+Il file viene scritto nella directory `knowledge/`, che e' montata nel container `python-app`.
+
+```powershell
+@'
+{
+  "_source": "EDR",
+  "external_id": "test-edr-001",
+  "host": "workstation-042",
+  "user": "alice",
+  "alert": "Suspicious PowerShell execution with encoded command",
+  "command_line": "powershell.exe -EncodedCommand ...",
+  "indicators": ["198.51.100.42"],
+  "message": "Possible command and control activity"
+}
+'@ | Set-Content -Encoding utf8 knowledge/raw_data/edr_alerts/test_alert.json
+```
+
+### 3. Esegui l'orchestratore
+Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ResponseAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
+
+```powershell
+docker exec python-app python -m RAG.orchestrator_agent /app/knowledge/raw_data/edr_alerts/test_alert.json
+```
+
+Nel JSON restituito verificare:
+
+- `incident_id` valorizzato;
+- `status` uguale a `responded` in caso di esecuzione completata;
+- presenza di `triage`, `context`, `action_plan`, `validation` ed `execution`;
+- `validation.approved_actions` contenente almeno un'azione approvata.
+
+Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azione non presente nel catalogo, oppure nessuna azione, il risultato atteso e' `status: "failed"` con `phase: "validation"`: questo indica un rifiuto corretto della policy, non un errore del database.
+
+### 4. Controlla stato e audit trail
+Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
+
+```powershell
+docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT id, source, external_id, severity, status, created_at, updated_at FROM incidents WHERE id = <INCIDENT_ID>;"
+docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"
+```
+
+La seconda query deve mostrare almeno le azioni di `orchestrator_agent`, `triage_agent`, `retrieve_agent`, `response_agent`, `validation_agent` e `response_layer`.
+
+### 5. Test rapido senza file
+Per provare il percorso direttamente da Python:
+
+```powershell
+docker exec python-app python -c "from RAG.orchestrator_agent import handle_alert; import json; result = handle_alert('EDR', {'host': 'workstation-042', 'alert': 'Suspicious PowerShell execution', 'indicators': ['198.51.100.42']}, 'test-edr-002'); print(json.dumps(result, indent=2, default=str))"
+```
+
+### 6. Controlla metriche e log
+
+```powershell
+docker exec -it python-app python -m RAG.logging_agent --tail 30
+docker logs otel-collector --tail 50
+```
+
+Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. Gli script SQL dentro `postgres/init/` vengono eseguiti automaticamente solo quando il volume Postgres viene creato per la prima volta.
 
 ## Logging Agent
 Il **Logging Agent** ([RAG/logging_agent.py](RAG/logging_agent.py)) riceve, correla e salva le metriche di

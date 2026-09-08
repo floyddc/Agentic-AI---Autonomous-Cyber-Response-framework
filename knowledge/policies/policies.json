@@ -1,0 +1,6 @@
+{
+  "severity_order": ["low", "medium", "high", "critical"],
+  "require_human_approval_above_severity": "high",
+  "blocked_actions": [],
+  "max_actions_per_plan": 5
+}

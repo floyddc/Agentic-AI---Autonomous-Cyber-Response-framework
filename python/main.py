@@ -1,7 +1,10 @@
+import json
 import time
 from ollama import Client
+from RAG.orchestrator_agent import OrchestratorAgent
 
 client = Client(host="http://ollama:11434")
+orchestrator = OrchestratorAgent()
 
 messages = [
     {
@@ -16,7 +19,8 @@ messages = [
 print("=" * 50)
 print("       Chat with Qwen3:4b-instruct")
 print("=" * 50)
-print("Type 'exit' to close this chat.\n")
+print("Type 'exit' to close this chat.")
+print("Type 'alert <path_to_json>' to run the orchestrator on a raw security alert.\n")
 
 
 while True:
@@ -29,6 +33,23 @@ while True:
         if user_input.lower() in ("exit", "quit", "esci"):
             print("Hi!")
             break
+
+        if user_input.lower().startswith("alert"):
+            parts = user_input.split(maxsplit=1)
+            if len(parts) < 2:
+                print("Usage: alert <path_to_json>\n")
+                continue
+
+            try:
+                with open(parts[1], "r", encoding="utf-8-sig") as f:
+                    payload = json.load(f)
+                source = payload.pop("_source", "manual")
+                report = orchestrator.handle_alert(source=source, raw_payload=payload)
+                print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+                print()
+            except Exception as e:
+                print(f"[DEBUG] Orchestrator error: {e}\n")
+            continue
 
         messages.append({
             "role": "user",
