@@ -2,7 +2,7 @@ import json
 import logging
 import sys
 from typing import Any, Dict, Optional
-from .incident_registry import IncidentRegistry
+from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 from .response_agent import ResponseAgent
 from .response_layer import ResponseLayer
@@ -46,7 +46,7 @@ class OrchestratorAgent:
         return {"incident_id": incident_id, "status": "failed", "phase": phase, "error": str(error)}
 
     def handle_alert(self, source: str, raw_payload: Dict[str, Any], external_id: Optional[str] = None) -> Dict[str, Any]:
-        
+
         with logging_agent.track("orchestrator_agent", "handle_alert"):
 
             # new

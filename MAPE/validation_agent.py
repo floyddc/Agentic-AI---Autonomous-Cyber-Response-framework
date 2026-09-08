@@ -3,8 +3,8 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
-from . import config
-from .incident_registry import IncidentRegistry
+from RAG import config
+from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)

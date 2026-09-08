@@ -1,5 +1,5 @@
 from .ingestion import build_chunks
-from .vectorstore import index_records
+from .vector_store import index_records
 
 def main():
     records = build_chunks()

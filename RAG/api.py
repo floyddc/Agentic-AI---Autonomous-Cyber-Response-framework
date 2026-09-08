@@ -1,7 +1,7 @@
 from typing import Any, Dict
 from . import config
-from .retrieve_agent import RetrieveAgent
-from .response_agent import ResponseAgent
+from MAPE.retrieve_agent import RetrieveAgent
+from MAPE.response_agent import ResponseAgent
 
 class RAGService:
 

@@ -1,9 +1,9 @@
 import json
 from typing import Any, Dict, List, Optional
-from . import config
-from .db import cursor as _cursor
-from .knowledge_store import IncidentHistoryStore
-from .logging_agent import logging_agent
+from RAG import config
+from postgres.db import cursor as _cursor
+from RAG.knowledge_store import IncidentHistoryStore
+from MAPE.logging_agent import logging_agent
 
 # Incident lifecycle: new -> triage -> triaged -> retrieve -> validation -> validated -> response -> responded
 STATUS_FLOW = [

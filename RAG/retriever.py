@@ -2,7 +2,7 @@ from typing import List
 from . import config
 from .embeddings import embed_query
 from .reranker import rerank
-from .vectorstore import get_collection
+from .vector_store import get_collection
 
 def retrieve(query: str, top_k: int = config.TOP_K) -> List[dict]:
 

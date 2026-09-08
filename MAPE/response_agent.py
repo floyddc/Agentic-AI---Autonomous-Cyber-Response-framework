@@ -1,9 +1,9 @@
 import json
 import logging
 from ollama import Client
-from . import config
-from .context_builder import build_context
-from .incident_registry import IncidentRegistry
+from RAG import config
+from RAG.context_builder import build_context
+from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)

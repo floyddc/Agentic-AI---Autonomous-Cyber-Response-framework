@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional
-from . import config
-from .incident_registry import IncidentRegistry
+from RAG import config
+from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)

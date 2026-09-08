@@ -1,7 +1,7 @@
 import json
 import time
 from ollama import Client
-from RAG.orchestrator_agent import OrchestratorAgent
+from MAPE.orchestrator_agent import OrchestratorAgent
 
 client = Client(host="http://ollama:11434")
 orchestrator = OrchestratorAgent()

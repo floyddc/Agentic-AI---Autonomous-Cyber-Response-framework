@@ -1,6 +1,6 @@
 import os
-from . import config
-from .knowledge_store import KnowledgeBaseStore
+from RAG import config
+from RAG.knowledge_store import KnowledgeBaseStore
 
 CATEGORY_DIRS = {
     "mitre_attack": os.path.join(config.BASE_DIR, "mitre_attack"),

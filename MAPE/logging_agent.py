@@ -4,8 +4,8 @@ import sys
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
-from . import config
-from .db import cursor as _cursor
+from RAG import config
+from postgres.db import cursor as _cursor
 
 logger = logging.getLogger(__name__)
 

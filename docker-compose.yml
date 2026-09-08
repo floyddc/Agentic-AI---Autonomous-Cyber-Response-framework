@@ -102,6 +102,8 @@ services:
       - ./python:/app
       - ./RAG:/app/RAG
       - ./knowledge:/app/knowledge
+      - ./postgres:/app/postgres
+      - ./MAPE:/app/MAPE
 
     working_dir: /app
 

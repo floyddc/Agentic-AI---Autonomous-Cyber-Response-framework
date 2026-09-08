@@ -1,8 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional
-
 from . import config
-from .db import cursor
+from postgres.db import cursor
 
 
 class KnowledgeBaseStore:

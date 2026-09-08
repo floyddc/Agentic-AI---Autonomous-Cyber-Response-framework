@@ -4,7 +4,7 @@ import io
 import json
 import re
 import requests
-from . import config
+from RAG import config
 
 MITRE_DATASET = "sarahwei/cyber_MITRE_attack_tactics-and-techniques"
 
