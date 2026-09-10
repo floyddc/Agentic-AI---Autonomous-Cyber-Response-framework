@@ -18,7 +18,7 @@ services:
       test: ["CMD-SHELL", "test -f /tmp/qwen-warmup-complete"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 10s
 
     restart: unless-stopped
@@ -44,7 +44,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U cyberresponse -d incident_registry"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 10s
 
     restart: unless-stopped

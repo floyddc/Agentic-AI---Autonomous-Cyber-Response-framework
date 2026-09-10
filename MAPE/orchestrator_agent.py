@@ -4,7 +4,7 @@ import sys
 from typing import Any, Dict, Optional
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
-from .response_agent import ResponseAgent
+from .action_planner_agent import ActionPlannerAgent
 from .response_layer import ResponseLayer
 from .retrieve_agent import RetrieveAgent
 from .triage_agent import TriageAgent
@@ -23,14 +23,14 @@ class OrchestratorAgent:
         registry: Optional[IncidentRegistry] = None,
         triage_agent: Optional[TriageAgent] = None,
         retrieve_agent: Optional[RetrieveAgent] = None,
-        response_agent: Optional[ResponseAgent] = None,
+        action_planner_agent: Optional[ActionPlannerAgent] = None,
         validation_agent: Optional[ValidationAgent] = None,
         response_layer: Optional[ResponseLayer] = None,
     ):
         self.registry = registry or IncidentRegistry()
         self.triage_agent = triage_agent or TriageAgent(registry=self.registry)
         self.retrieve_agent = retrieve_agent or RetrieveAgent(registry=self.registry)
-        self.response_agent = response_agent or ResponseAgent(registry=self.registry)
+        self.action_planner_agent = action_planner_agent or ActionPlannerAgent(registry=self.registry)
         self.validation_agent = validation_agent or ValidationAgent(registry=self.registry)
         self.response_layer = response_layer or ResponseLayer(registry=self.registry)
 
@@ -77,7 +77,7 @@ class OrchestratorAgent:
             # validation -> validated (response agent proposes the plan, validation layer checks it)
             self.registry.update_status(incident_id, "validation")
             try:
-                action_plan = self.response_agent.propose_action_plan(incident, context, incident_id=incident_id)
+                action_plan = self.action_planner_agent.propose_action_plan(incident, context, incident_id=incident_id)
                 is_valid, validation_result = self.validation_agent.validate(incident_id, action_plan, severity)
             except Exception as exc:
                 return self._fail(incident_id, "validation", exc)

@@ -22,12 +22,6 @@
 
 **3. Check:** `wsl -d <WSL DISTRO>` -> `egrep '^processor' /proc/cpuinfo | sort -u | wc -l`
 
-
-
-
-
-
-
 ## Avvio dei container
 **1. Creazione container:** `docker compose build --no-cache`
 
@@ -98,7 +92,7 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
 
 ## Eseguire il workflow MAPE-K
-Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ResponseAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
+Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ActionPlannerAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
 
   - `docker exec python-app python -m MAPE.orchestrator_agent /app/knowledge/raw_data/edr_alerts/test_alert.json`
 
@@ -121,11 +115,11 @@ Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
 
   - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"`
 
-La seconda query deve mostrare almeno le azioni di `orchestrator_agent`, `triage_agent`, `retrieve_agent`, `response_agent`, `validation_agent` e `response_layer`.
+La seconda query deve mostrare almeno le azioni di `orchestrator_agent`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m RAG.logging_agent --tail 30`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail 30`
 
   - `docker logs otel-collector --tail 50`
 

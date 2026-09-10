@@ -8,8 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class ResponseLayer:
-    """RESPONSE LAYER: executes validated actions, either automatically or by
-    handing them off to a SOC analyst, via the XDR/EDR API."""
 
     def __init__(self, registry: Optional[IncidentRegistry] = None):
         self.registry = registry or IncidentRegistry()

@@ -25,7 +25,7 @@ ACTION_PLAN_SYSTEM_PROMPT = (
 )
 
 
-class ResponseAgent:
+class ActionPlannerAgent:
 
     def __init__(self, model: str = config.CHAT_MODEL, host: str = config.OLLAMA_HOST, registry: IncidentRegistry = None):
         self.model = model
@@ -57,17 +57,22 @@ class ResponseAgent:
 
     def propose_action_plan(self, incident: dict, context: str, incident_id: int = None) -> dict:
         with logging_agent.track("response_agent", "propose_action_plan", incident_id=incident_id):
+            
             prompt_incident = {
                 field: incident.get(field)
                 for field in ("source", "external_id", "summary", "description", "severity", "raw_payload")
                 if incident.get(field) is not None
             }
+
             question = json.dumps(prompt_incident, ensure_ascii=False, default=str)
+
             context = (context or "")[:config.ACTION_PLAN_CONTEXT_CHARS]
+
             messages = [
                 {"role": "system", "content": ACTION_PLAN_SYSTEM_PROMPT},
                 {"role": "user", "content": f"Context:\n{context}\n\nIncident: {question}"},
             ]
+
             try:
                 response = self.client.chat(model=self.model, messages=messages, format="json")
                 plan = json.loads(response["message"]["content"])
@@ -91,7 +96,3 @@ class ResponseAgent:
                 logger.exception("Failed to log response_agent action to the incident registry")
 
             return plan
-
-
-def ask_response(question: str, model: str = config.CHAT_MODEL, incident_id: int = None) -> str:
-    return ResponseAgent(model=model).ask(question, incident_id=incident_id)

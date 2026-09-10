@@ -24,7 +24,6 @@ def _load_json_files(folder: str) -> List[Dict[str, Any]]:
 
 
 class ValidationAgent:
-    """Checks a proposed action plan against the action catalog and the active policies before it can be handed to the response layer."""
 
     def __init__(self, registry: Optional[IncidentRegistry] = None):
         self.registry = registry or IncidentRegistry()

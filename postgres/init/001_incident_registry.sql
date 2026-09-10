@@ -17,7 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_incidents_created_at ON incidents (created_at);
 CREATE TABLE IF NOT EXISTS audit_log (
     id SERIAL PRIMARY KEY,
     incident_id INTEGER REFERENCES incidents (id) ON DELETE SET NULL,
-    agent TEXT NOT NULL,               -- logging_agent, triage_agent, retrieve_agent, response_agent, validation_agent, response_layer, orchestrator_agent
+    agent TEXT NOT NULL,               -- logging_agent, triage_agent, retrieve_agent, action_planner_agent, validation_agent, response_layer, orchestrator_agent
     action TEXT NOT NULL,              -- "classified", "retrieved_context", "proposed_action"
     details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
