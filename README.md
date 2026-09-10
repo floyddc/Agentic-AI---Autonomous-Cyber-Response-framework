@@ -94,7 +94,7 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 ## Eseguire il workflow MAPE-K
 Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ActionPlannerAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
 
-  - `docker exec python-app python -m MAPE.orchestrator_agent /app/knowledge/raw_data/edr_alerts/test_alert.json`
+  - `docker exec python-app python -m MAPE.orchestrator /app/knowledge/raw_data/edr_alerts/test_alert.json`
 
 Nel JSON restituito verificare:
 
@@ -102,7 +102,7 @@ Nel JSON restituito verificare:
 
 - `status` uguale a `responded` in caso di esecuzione completata.
 
-- presenza di `triage`, `context`, `action_plan`, `validation` ed `execution`.
+- presenza di `triage`, `context`, `action_plan`, `validation` ed `response`.
 
 - `validation.approved_actions` contenente almeno un'azione approvata.
 
@@ -115,7 +115,7 @@ Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
 
   - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"`
 
-La seconda query deve mostrare almeno le azioni di `orchestrator_agent`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
+La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
 
 ## Controllare metriche e log
 

@@ -67,7 +67,7 @@ class ValidationAgent:
 
             severity_rank = severity_order.index(severity) if severity in severity_order else len(severity_order) - 1
             ceiling_rank = severity_order.index(approval_ceiling) if approval_ceiling in severity_order else len(severity_order) - 1
-            requires_human_approval = severity_rank > ceiling_rank
+            requires_human_approval = severity_rank >= ceiling_rank
 
             for action in actions:
                 name = action.get("action") if isinstance(action, dict) else None
@@ -87,7 +87,7 @@ class ValidationAgent:
                     continue
                 action_ceiling = catalog_entry.get("max_auto_severity", approval_ceiling)
                 action_ceiling_rank = severity_order.index(action_ceiling) if action_ceiling in severity_order else len(severity_order) - 1
-                action["requires_human_approval"] = requires_human_approval or severity_rank > action_ceiling_rank
+                action["requires_human_approval"] = requires_human_approval or severity_rank >= action_ceiling_rank
                 approved.append(action)
 
             is_valid = len(approved) > 0

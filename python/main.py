@@ -1,10 +1,10 @@
 import json
 import time
 from ollama import Client
-from MAPE.orchestrator_agent import OrchestratorAgent
+from MAPE.orchestrator import Orchestrator
 
 client = Client(host="http://ollama:11434")
-orchestrator = OrchestratorAgent()
+orchestrator = Orchestrator()
 
 messages = [
     {
@@ -21,7 +21,6 @@ print("       Chat with Qwen3:4b-instruct")
 print("=" * 50)
 print("Type 'exit' to close this chat.")
 print("Type 'alert <path_to_json>' to run the orchestrator on a raw security alert.\n")
-
 
 while True:
     try:

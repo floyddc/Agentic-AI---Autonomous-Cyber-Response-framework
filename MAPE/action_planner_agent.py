@@ -21,7 +21,7 @@ ACTION_PLAN_SYSTEM_PROMPT = (
     "\"summary\" (short rationale) and \"actions\" (a list of objects, each with "
     "\"action\" = one of the known action-catalog action names, \"target\" = the host/ip/account "
     "affected, and \"justification\"). No prose, no markdown, JSON only. "
-    "This plan will be checked by a policy/validation layer before execution."
+    "This plan will be checked by a policy/validation layer before response."
 )
 
 

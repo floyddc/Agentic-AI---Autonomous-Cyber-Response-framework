@@ -20,6 +20,16 @@ class ResponseLayer:
 
     def execute(self, incident_id: int, approved_actions: List[Dict[str, Any]]) -> Dict[str, Any]:
         with logging_agent.track("response_layer", "execute", incident_id=incident_id):
+
+            self.registry.log_action(
+                incident_id,
+                agent="response_layer",
+                action="response_started",
+                details={
+                    "approved_actions": approved_actions,
+                },
+            )
+            
             results = [self._execute_action(action) for action in approved_actions]
 
             self.registry.log_action(
