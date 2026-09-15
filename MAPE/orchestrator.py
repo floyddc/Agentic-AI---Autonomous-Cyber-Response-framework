@@ -206,15 +206,7 @@ class Orchestrator:
             )
 
         if not is_valid:
-            self._set_phase(
-                incident_id,
-                state,
-                FAILED,
-                details={
-                    "reason": "validation_rejected",
-                },
-            )
-
+            self._set_phase(incident_id, state, FAILED, details={"reason": "validation_rejected"})
             return False, validation_result
 
         self._set_phase(incident_id, state, VALIDATED)
