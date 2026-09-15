@@ -14,7 +14,8 @@ INDICES_DIR = os.path.join(KNOWLEDGE_DIR, "indices")
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "qllama/multilingual-e5-small")
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "qwen3:4b-instruct")
+PLAN_MODEL = os.environ.get("PLAN_MODEL", "qwen3:4b-instruct")
+TRIAGE_MODEL = os.environ.get("TRIAGE_MODEL", "qwen3:0.6b")
 ACTION_PLAN_CONTEXT_CHARS = int(os.environ.get("ACTION_PLAN_CONTEXT_CHARS", "4500"))
 
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")

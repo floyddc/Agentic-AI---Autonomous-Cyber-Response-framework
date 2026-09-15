@@ -109,9 +109,7 @@ class IncidentRegistry:
         return incident.get("status")
 
     def update_fields(self, incident_id: int, **fields: Any) -> None:
-        """
-        Update a controlled subset of incident fields.
-        """
+
         allowed = {
             "summary",
             "description",

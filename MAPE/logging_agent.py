@@ -51,6 +51,11 @@ class LoggingAgent:
     def __init__(self):
         self._events_counter, self._duration_histogram = _build_meter()
 
+    def clear(self):
+        with _cursor(config.POSTGRES_OPERATIONAL_DB) as cur:
+            cur.execute("TRUNCATE TABLE agent_metrics")
+
+
     def record(
         self,
         component: str,
@@ -108,6 +113,11 @@ logging_agent = LoggingAgent()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+
+    if "--clear" in sys.argv:
+        logging_agent.clear()
+        print("agent_metrics cleared.")
+        sys.exit(0)
 
     limit = 20
     if len(sys.argv) > 1 and sys.argv[1] not in ("--tail",):

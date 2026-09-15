@@ -27,7 +27,7 @@ ACTION_PLAN_SYSTEM_PROMPT = (
 
 class ActionPlannerAgent:
 
-    def __init__(self, model: str = config.CHAT_MODEL, host: str = config.OLLAMA_HOST, registry: IncidentRegistry = None):
+    def __init__(self, model: str = config.PLAN_MODEL, host: str = config.OLLAMA_HOST, registry: IncidentRegistry = None):
         self.model = model
         self.client = Client(host=host)
         self.registry = registry or IncidentRegistry()

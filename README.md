@@ -12,7 +12,7 @@
 **1. Allocazione risorse:** `notepad "$env:USERPROFILE\.wslconfig"` (PowerShell).
   ```
   [wsl2]
-  memory=5GB
+  memory=6GB
   processors=8
   swap=4GB
   ```
@@ -119,9 +119,10 @@ La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --tail 30`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail <N>`
 
-  - `docker logs otel-collector --tail 50`
+  - `docker logs otel-collector --tail <N>`
 
+  - `docker exec -it python-app python -m MAPE.logging_agent --clear` per pulire.
 
 Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. Gli script SQL dentro `postgres/init/` vengono eseguiti automaticamente solo quando il volume Postgres viene creato per la prima volta.

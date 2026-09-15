@@ -33,7 +33,7 @@ SYSTEM_PROMPT = (
 
 class TriageAgent:
 
-    def __init__(self, model: str = config.CHAT_MODEL, host: str = config.OLLAMA_HOST, registry: Optional[IncidentRegistry] = None):
+    def __init__(self, model: str = config.TRIAGE_MODEL, host: str = config.OLLAMA_HOST, registry: Optional[IncidentRegistry] = None):
         self.model = model
         self.client = Client(host=host)
         self.registry = registry or IncidentRegistry()

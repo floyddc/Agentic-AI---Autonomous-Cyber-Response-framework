@@ -2,8 +2,10 @@
 
 set -eu
 
-QWEN_MODEL="${CHAT_MODEL:-qwen3:4b-instruct}"
-WARMUP_MARKER="/tmp/qwen-warmup-complete"
+TRIAGE_MODEL="${TRIAGE_MODEL:-qwen3:0.6b}"
+PLAN_MODEL="${PLAN_MODEL:-qwen3:4b-instruct}"
+TRIAGE_WARMUP_MARKER="/tmp/qwen3:0.6b-warmup-complete"
+PLAN_WARMUP_MARKER="/tmp/qwen3:4b-instruct-warmup-complete"
 
 ollama serve &
 
@@ -16,11 +18,18 @@ done
 
 echo "-------------------- Ollama ready. --------------------"
 
-if ! ollama list | grep -q "${QWEN_MODEL}"; then
-    echo "-------------------- Downloading ${QWEN_MODEL}... --------------------"
-    ollama pull "${QWEN_MODEL}"
+if ! ollama list | grep -q "${TRIAGE_MODEL}"; then
+    echo "-------------------- Downloading ${TRIAGE_MODEL}... --------------------"
+    ollama pull "${TRIAGE_MODEL}"
 else
-    echo "-------------------- ${QWEN_MODEL} already set. --------------------"
+    echo "-------------------- ${TRIAGE_MODEL} already set. --------------------"
+fi
+
+if ! ollama list | grep -q "${PLAN_MODEL}"; then
+    echo "-------------------- Downloading ${PLAN_MODEL}... --------------------"
+    ollama pull "${PLAN_MODEL}"
+else
+    echo "-------------------- ${PLAN_MODEL} already set. --------------------"
 fi
 
 if ! ollama list | grep -q "multilingual-e5-small"; then
@@ -30,14 +39,25 @@ else
     echo "-------------------- qllama/multilingual-e5-small already set. --------------------"
 fi
 
-if [ ! -f "${WARMUP_MARKER}" ]; then
+if [ ! -f "${TRIAGE_WARMUP_MARKER}" ]; then
     printf '\n\n\n'
-    echo "-------------------- Warming up ${QWEN_MODEL}... --------------------"
+    echo "-------------------- Warming up ${TRIAGE_MODEL}... --------------------"
     printf '\n\n\n'
-    ollama run "${QWEN_MODEL}" "Warm-up" >/dev/null
-    touch "${WARMUP_MARKER}"
+    ollama run "${TRIAGE_MODEL}" "Warm-up" >/dev/null
+    touch "${TRIAGE_WARMUP_MARKER}"
     printf '\n\n\n'
-    echo "-------------------- ${QWEN_MODEL} warm-up complete. --------------------"
+    echo "-------------------- ${TRIAGE_MODEL} warm-up complete. --------------------"
+    printf '\n\n\n'
+fi
+
+if [ ! -f "${PLAN_WARMUP_MARKER}" ]; then
+    printf '\n\n\n'
+    echo "-------------------- Warming up ${PLAN_MODEL}... --------------------"
+    printf '\n\n\n'
+    ollama run "${PLAN_MODEL}" "Warm-up" >/dev/null
+    touch "${PLAN_WARMUP_MARKER}"
+    printf '\n\n\n'
+    echo "-------------------- ${PLAN_MODEL} warm-up complete. --------------------"
     printf '\n\n\n'
 fi
 

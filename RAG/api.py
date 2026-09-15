@@ -5,7 +5,7 @@ from MAPE.action_planner_agent import ActionPlannerAgent
 
 class RAGService:
 
-    def __init__(self, model: str = config.CHAT_MODEL, host: str = config.OLLAMA_HOST):
+    def __init__(self, model: str = config.PLAN_MODEL, host: str = config.OLLAMA_HOST):
         self.model = model
         self.host = host
         self.retrieve_agent = RetrieveAgent()
@@ -23,5 +23,5 @@ class RAGService:
         }
 
 
-def query_rag(question: str, model: str = config.CHAT_MODEL, host: str = config.OLLAMA_HOST, warmup: bool = True, incident_id: int = None) -> Dict[str, Any]:
+def query_rag(question: str, model: str = config.PLAN_MODEL, host: str = config.OLLAMA_HOST, warmup: bool = True, incident_id: int = None) -> Dict[str, Any]:
     return RAGService(model=model, host=host).query(question, warmup=warmup, incident_id=incident_id)
