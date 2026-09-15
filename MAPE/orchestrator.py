@@ -128,27 +128,6 @@ class Orchestrator:
         }
 
 
-    # TRIAGE ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-    def _run_triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, context: str, state: Dict[str, Any]) -> Dict[str, Any]:
-        
-        self._set_phase(incident_id, state, TRIAGE)
-        result = self.triage_agent.triage(incident_id, raw_payload, source, context)
-
-        if not isinstance(result, dict):
-            raise RuntimeError("TriageAgent returned an invalid result")
-
-        self.registry.update_fields(
-            incident_id,
-            summary=result.get("summary"),
-            description=result.get("description"),
-            severity=result.get("severity"),
-        )
-
-        self._set_phase(incident_id, state, TRIAGED)
-
-        return result
-
-
     # RETRIEVE ----------------------------------------------------------------------------------------------------------------------------------------------------------    
     def _run_retrieve(self, incident_id: int, state: Dict[str, Any]) -> Dict[str, Any]:
 
@@ -169,7 +148,28 @@ class Orchestrator:
         self._set_phase(incident_id, state, "retrieved", persist=False)
 
         return result
+    
 
+    # TRIAGE ----------------------------------------------------------------------------------------------------------------------------------------------------------    
+    def _run_triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, context: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        
+        self._set_phase(incident_id, state, TRIAGE)
+        result = self.triage_agent.triage(incident_id, raw_payload, source, context)
+
+        if not isinstance(result, dict):
+            raise RuntimeError("TriageAgent returned an invalid result")
+
+        self.registry.update_fields(
+            incident_id,
+            summary=result.get("summary"),
+            description=result.get("description"),
+            severity=result.get("severity"),
+        )
+
+        self._set_phase(incident_id, state, TRIAGED)
+
+        return result
+    
 
     # PLAN ACTION ----------------------------------------------------------------------------------------------------------------------------------------------------------    
     def _run_planning(self, incident_id: int, context: str, state: Dict[str, Any]) -> Dict[str, Any]:

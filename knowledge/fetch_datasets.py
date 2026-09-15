@@ -35,7 +35,7 @@ def _slugify(text: str, max_len: int = 60) -> str:
 
 
 def fetch_mitre_attack_qa() -> int:
-    """Downloads the MITRE ATT&CK Q&A dataset and writes one .md file per row."""
+
     from datasets import load_dataset
 
     dataset = load_dataset(MITRE_DATASET, split="train")
@@ -60,8 +60,7 @@ def fetch_mitre_attack_qa() -> int:
 
 
 def fetch_nsl_kdd_sample(sample_size: int = 500) -> int:
-    """Downloads a sample of the NSL-KDD network intrusion dataset as JSON
-    telemetry records under knowledge/raw_data/xrd_telemetry/."""
+
     import os
 
     response = requests.get(NSL_KDD_TEST_URL, timeout=60)
