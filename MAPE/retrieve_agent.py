@@ -21,28 +21,71 @@ class RetrieveAgent:
 
         if isinstance(incident, str):
             return incident
-        
-        if isinstance(incident, dict):
 
-            fields = ["summary", "title", "description", "alert", "message", "signature"]
+        if not isinstance(incident, dict):
+            return str(incident)
+
+        raw_payload = incident.get("raw_payload")
+
+        if isinstance(raw_payload, dict):
+
             parts = []
-            for f in fields:
-                v = incident.get(f)
-                if v:
-                    parts.append(f"{f}: {v}")
 
-            if incident.get("indicators"):
-                parts.append(f"indicators: {incident['indicators']}")
+            source = incident.get("source") or raw_payload.get("_source")
+            if source: parts.append(f"source: {source}")
+
+            fields = [
+                "alert",
+                "message",
+                "command_line",
+                "indicators",
+                "host",
+                "user",
+                "signature",
+                "event_type",
+                "event_name",
+                "process",
+                "service",
+            ]
+
+            for field in fields: 
+                value = raw_payload.get(field)
+
+                if value is not None and value != "":
+                    parts.append(f"{field}: {value}")
 
             if parts:
-                return " \n".join(parts)
+                return "\n".join(parts)
 
-            try:
-                return json.dumps(incident)
-            except Exception:
-                return str(incident)
+            return json.dumps(raw_payload, ensure_ascii=False, default=str)
 
-        return str(incident)
+        # Fallback
+        fields = [
+            "summary",
+            "title",
+            "description",
+            "alert",
+            "message",
+            "command_line",
+            "indicators",
+            "host",
+            "user",
+            "signature",
+        ]
+
+        parts = []
+
+        for field in fields:
+            value = incident.get(field)
+
+            if value is not None and value != "":
+                parts.append(f"{field}: {value}")
+
+        if parts:
+            return "\n".join(parts)
+
+        return json.dumps(incident, ensure_ascii=False, default=str)
+
 
     def retrieve(self, incident_or_query: Any, incident_id: int = None) -> Dict[str, Any]:
 
@@ -55,7 +98,7 @@ class RetrieveAgent:
                     incident_id,
                     agent="retrieve_agent",
                     action="retrieved_context",
-                    details={"query": q, "context": context},
+                    details={"query": q, "context_length": len(context) if context else 0},
                 )
             except Exception:
                 self.logger.exception("Failed to log retrieve_agent action to the incident registry")

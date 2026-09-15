@@ -38,15 +38,18 @@ class Router:
     def decide(self, state: Dict[str, Any]) -> str:
 
         phase = state.get("phase")
-        if phase == NEW: return ACTION_TRIAGE
-        if phase == TRIAGED: return ACTION_RETRIEVE
-        if phase == "retrieved": return ACTION_PLAN
+
+        if phase == NEW: return ACTION_RETRIEVE
+        if phase == "retrieved": return ACTION_TRIAGE
+        if phase == TRIAGED: return ACTION_PLAN
         if phase == "response_proposed": return ACTION_VALIDATE
         if phase == VALIDATED: return ACTION_EXECUTE
         if phase == AWAITING_HUMAN_APPROVAL: return ACTION_WAIT_FOR_HUMAN
         if phase == RESPONDED: return ACTION_END
         if phase == FAILED: return ACTION_END
+
         raise RuntimeError(f"Unknown orchestration phase: {phase}")
+
 
 # ORCHESTRATOR  ----------------------------------------------------------------------------------------------------------------------------------------------------------
 class Orchestrator:
@@ -126,10 +129,10 @@ class Orchestrator:
 
 
     # TRIAGE ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-    def _run_triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, context: str, state: Dict[str, Any]) -> Dict[str, Any]:
         
         self._set_phase(incident_id, state, TRIAGE)
-        result = self.triage_agent.triage(incident_id, raw_payload, source)
+        result = self.triage_agent.triage(incident_id, raw_payload, source, context)
 
         if not isinstance(result, dict):
             raise RuntimeError("TriageAgent returned an invalid result")
@@ -152,7 +155,7 @@ class Orchestrator:
         self._set_phase(incident_id, state, RETRIEVE)
         incident = self.registry.get_incident(incident_id)
 
-        if incident is None:
+        if incident is None: 
             raise RuntimeError(f"Incident {incident_id} not found")
 
         result = self.retrieve_agent.retrieve(incident, incident_id=incident_id)
@@ -324,7 +327,7 @@ class Orchestrator:
                 action="created",
                 details={
                     "source": source,
-                    "external_id": external_id,
+                    "external_id": external_id, 
                 },
             )
 
@@ -368,13 +371,14 @@ class Orchestrator:
                             "response": response,
                         }
 
-                    if action == ACTION_TRIAGE:
-                        triage_result = self._run_triage(incident_id, raw_payload, source, state)
-                        continue
 
                     if action == ACTION_RETRIEVE:
                         retrieval = self._run_retrieve(incident_id, state)
                         context = retrieval.get("context", "")
+                        continue
+
+                    if action == ACTION_TRIAGE:
+                        triage_result = self._run_triage(incident_id, raw_payload, source, context, state)
                         continue
 
                     if action == ACTION_PLAN:

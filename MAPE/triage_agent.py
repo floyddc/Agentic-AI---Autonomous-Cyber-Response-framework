@@ -11,11 +11,23 @@ logger = logging.getLogger(__name__)
 VALID_SEVERITIES = ("low", "medium", "high", "critical")
 
 SYSTEM_PROMPT = (
-    "You are the AI Triage agent in a cyber-response system. Given a raw security alert "
-    "(from EDR/XDR/SIEM), normalize it and respond with ONLY a compact JSON object with "
-    "these keys: \"summary\" (short one-line title), \"description\" (normalized details), "
+    "You are the AI Triage agent in a cyber-response system. "
+    "Given a raw security alert (from EDR/XDR/SIEM), together with "
+    "relevant context retrieved from a cybersecurity knowledge base, "
+    "normalize and triage the incident. "
+
+    "Use the retrieved context as supporting evidence for the triage. "
+    "The raw alert is the primary source of truth. "
+    "Retrieved documents may describe similar incidents, known attack "
+    "patterns, procedures, or historical cases, but they are not "
+    "necessarily applicable to the current alert. "
+
+    "Respond with ONLY a compact JSON object with these keys: "
+    "\"summary\" (short one-line title), "
+    "\"description\" (normalized details), "
     "\"category\" (best-guess MITRE ATT&CK tactic or attack type), "
-    "\"severity\" (one of: low, medium, high, critical). No prose, no markdown, JSON only."
+    "\"severity\" (one of: low, medium, high, critical). "
+    "No prose, no markdown, JSON only."
 )
 
 
@@ -36,11 +48,23 @@ class TriageAgent:
             return "medium"
         return "low"
 
-    def _llm_triage(self, raw_payload: Dict[str, Any], source: str) -> Optional[Dict[str, Any]]:
+    def _llm_triage(self, raw_payload: Dict[str, Any], source: str, context: str = "") -> Optional[Dict[str, Any]]:
         try:
             messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"source: {source}\nalert: {json.dumps(raw_payload, ensure_ascii=False)}"},
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"source: {source}\n\n"
+                        f"RAW SECURITY ALERT:\n"
+                        f"{json.dumps(raw_payload, ensure_ascii=False, default=str)}\n\n"
+                        f"RETRIEVED SECURITY CONTEXT:\n"
+                        f"{context or '(no relevant context retrieved)'}"
+                    ),
+                },
             ]
             response = self.client.chat(model=self.model, messages=messages, format="json")
             content = response["message"]["content"]
@@ -52,27 +76,27 @@ class TriageAgent:
             logger.exception("LLM triage failed, falling back to heuristic classification")
             return None
 
-    def triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str) -> Dict[str, Any]:
+    def triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, context: str = "") -> Dict[str, Any]:
         with logging_agent.track("triage_agent", "triage", incident_id=incident_id):
-            result = self._llm_triage(raw_payload, source)
+            result = self._llm_triage(raw_payload, source, context)
             if result is None:
                 result = {
                     "summary": f"{source} alert",
                     "description": json.dumps(raw_payload, ensure_ascii=False),
                     "category": "unknown",
-                    "severity": self._heuristic_severity(raw_payload),
+                    "severity": self._heuristic_severity(raw_payload)
                 }
 
             self.registry.update_fields(
                 incident_id,
                 summary=result.get("summary"),
                 description=result.get("description"),
-                severity=result.get("severity"),
+                severity=result.get("severity")
             )
             self.registry.log_action(
                 incident_id,
                 agent="triage_agent",
                 action="triaged",
-                details=result,
+                details=result
             )
             return result
