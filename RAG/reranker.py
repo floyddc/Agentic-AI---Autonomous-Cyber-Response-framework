@@ -25,3 +25,13 @@ def rerank(query: str, hits: List[dict], top_k: int) -> List[dict]:
 
     ranked = sorted(hits, key=lambda h: h["rerank_score"], reverse=True)
     return ranked[:top_k]
+
+def warmup() -> None:
+    model = _get_model()
+
+    model.predict([
+        (
+            "warm-up query",
+            "warm-up document for CrossEncoder initialization"
+        )
+    ])

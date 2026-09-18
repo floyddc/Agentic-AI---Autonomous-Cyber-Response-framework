@@ -60,11 +60,7 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
 **1. Popolare i documenti sorgente** sotto `knowledge/base/{mitre_attack,attack_patterns,observables,procedures}`, `knowledge/policies/` e `knowledge/actions_catalog/` (file `.md`, `.txt` o `.json`). In alternativa, **scaricare dataset reali da HuggingFace** ed eseguire conversione automatica nel formato `knowledge/`, tramite:
 
-  - `docker exec -it python-app python -m knowledge.fetch_datasets --mitre --telemetry`
-
-      - `--mitre`: [sarahwei/cyber_MITRE_attack_tactics-and-techniques](https://huggingface.co/datasets/sarahwei/cyber_MITRE_attack_tactics-and-techniques) (654 Q&A su tattiche/tecniche MITRE ATT&CK v15) → `knowledge/base/mitre_attack/`.
-
-      - `--telemetry`: campione del dataset [An24/IntrusionDetectionSystem-NSL_KDD](https://huggingface.co/datasets/An24/IntrusionDetectionSystem-NSL_KDD) (traffico di rete etichettato attacco/normale) → `knowledge/raw_data/xrd_telemetry/nsl_kdd_sample.json` (dati grezzi, non indicizzati dal RAG).
+  - `docker exec -it python-app python -m knowledge.fetch_datasets --mitre --telemetry --observables --threatfox-days <N> --sample-size <N>`
 
 **2. Seeding dei documenti da filesystem a Postgres** (da ripetere quando cambiano i file sotto `knowledge/base/*`):
 
@@ -80,7 +76,8 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
      - Uscire: `\q`
      
-     - Poi sintassi SQL.
+     - Poi sintassi SQL, es:
+       - Eliminare record delle metriche, azzerando il contatore degli id: `TRUNCATE TABLE agent_metrics RESTART IDENTITY;`
 
 **3. Costruire/aggiornare indice vettoriale** (persistito in `knowledge/indices/`):
 

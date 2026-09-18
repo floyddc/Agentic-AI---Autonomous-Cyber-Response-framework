@@ -91,8 +91,12 @@ class RetrieveAgent:
 
         q = self._incident_to_query(incident_or_query)
         start = time.perf_counter()
+        retrieval_metrics = {}
+
         try:
-            context = build_context(q, top_k=self.top_k)
+            context = build_context(q, top_k=self.top_k, retrieval_metrics=retrieval_metrics)
+            total_duration_ms = (time.perf_counter() - start) * 1000
+
             try:
                 self.registry.log_action(
                     incident_id,
@@ -102,18 +106,42 @@ class RetrieveAgent:
                 )
             except Exception:
                 self.logger.exception("Failed to log retrieve_agent action to the incident registry")
+
             logging_agent.record(
-                "retrieve_agent", "retrieve", status="success",
-                duration_ms=(time.perf_counter() - start) * 1000, incident_id=incident_id,
+                "retrieve_agent", "retrieve", status="success", duration_ms=total_duration_ms, incident_id=incident_id,
+                details={
+                    "collection_ms": retrieval_metrics.get("collection_ms", 0.0),
+                    "embedding_ms": retrieval_metrics.get("embedding_ms", 0.0),
+                    "search_ms": retrieval_metrics.get("search_ms", 0.0),
+                    "hits_ms": retrieval_metrics.get("hits_ms", 0.0),
+                    "rerank_ms": retrieval_metrics.get("rerank_ms", 0.0),
+                    "retrieval_total_ms": retrieval_metrics.get("total_ms", 0.0),
+                    "candidate_k": retrieval_metrics.get("candidate_k", 0),
+                    "result_count": retrieval_metrics.get("result_count", 0),
+                    "context_length": (len(context) if context else 0)
+                },
             )
             return {"query": q, "context": context}
+        
         except Exception as exc:
+            total_duration_ms = (time.perf_counter() - start) * 1000
             self.logger.exception("Retrieve failed")
+            
             logging_agent.record(
-                "retrieve_agent", "retrieve", status="error",
-                duration_ms=(time.perf_counter() - start) * 1000, incident_id=incident_id,
-                details={"error": str(exc)},
-            )
+                            "retrieve_agent", "retrieve", status="success", duration_ms=total_duration_ms, incident_id=incident_id,
+                            details={
+                                "error": str(exc),
+                                "collection_ms": retrieval_metrics.get("collection_ms", 0.0),
+                                "embedding_ms": retrieval_metrics.get("embedding_ms", 0.0),
+                                "search_ms": retrieval_metrics.get("search_ms", 0.0),
+                                "hits_ms": retrieval_metrics.get("hits_ms", 0.0),
+                                "rerank_ms": retrieval_metrics.get("rerank_ms", 0.0),
+                                "retrieval_total_ms": retrieval_metrics.get("total_ms", 0.0),
+                                "candidate_k": retrieval_metrics.get("candidate_k", 0),
+                                "result_count": retrieval_metrics.get("result_count", 0),
+                                "context_length": (len(context) if context else 0)
+                            },
+                        )
             return {"query": q, "error": str(exc)}
 
 

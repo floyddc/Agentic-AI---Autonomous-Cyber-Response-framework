@@ -13,6 +13,7 @@ class SourceDocument:
     path: str
     category: str
     content: str
+    metadata: str
 
 
 def _iter_files(root: str) -> Iterator[str]:
@@ -36,7 +37,7 @@ def _load_file_documents() -> List[SourceDocument]:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
             if content:
-                documents.append(SourceDocument(path=path, category=category, content=content))
+                documents.append(SourceDocument(path=path, category=category, content=content, metadata={"source": path}))
     return documents
 
 
@@ -45,7 +46,7 @@ def _load_knowledge_base_documents() -> List[SourceDocument]:
     documents: List[SourceDocument] = []
 
     for row in KnowledgeBaseStore().list_documents():
-        documents.append(SourceDocument(path=row["source_path"], category=row["category"], content=row["content"]))
+        documents.append(SourceDocument(path=row["source_path"], category=row["category"], content=row["content"], metadata=row["metadata"]))
 
     for row in IncidentHistoryStore().list_history():
         parts = [f"summary: {row['summary']}", f"description: {row['description']}"]
@@ -55,7 +56,7 @@ def _load_knowledge_base_documents() -> List[SourceDocument]:
             parts.append(f"lessons_learned: {row['lessons_learned']}")
         content = "\n".join(p for p in parts if p.strip())
         if content:
-            documents.append(SourceDocument(path=f"incident_history::{row['id']}", category="incident_history", content=content))
+            documents.append(SourceDocument(path=f"incident_history::{row['id']}", category="incident_history", content=content, metadata=row.get("metadata") or {}))
 
     return documents
 
@@ -86,9 +87,13 @@ def build_chunks() -> List[dict]:
     
     for doc in load_documents():
         for i, chunk in enumerate(chunk_text(doc.content)):
-            records.append({
-                "id": f"{doc.path}::{i}",
-                "text": chunk,
-                "metadata": {"source": doc.path, "category": doc.category, "chunk_index": i},
-            })
+            metadata = {
+                **doc.metadata,
+                "source": doc.path,
+                "category": doc.category,
+                "chunk_index": i,
+            }
+
+            records.append({"id": f"{doc.path}::{i}", "text": chunk, "metadata": metadata})
+            
     return records

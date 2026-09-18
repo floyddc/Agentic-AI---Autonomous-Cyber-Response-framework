@@ -13,7 +13,7 @@ NORMALIZED_ALERTS_DIR = os.path.join(PROCESSED_DIR, "normalized_alerts")
 INDICES_DIR = os.path.join(KNOWLEDGE_DIR, "indices")
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "qllama/multilingual-e5-small")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "qllama/multilingual-e5-small:q4_k_m")
 PLAN_MODEL = os.environ.get("PLAN_MODEL", "qwen3:4b-instruct")
 TRIAGE_MODEL = os.environ.get("TRIAGE_MODEL", "qwen3:0.6b")
 ACTION_PLAN_CONTEXT_CHARS = int(os.environ.get("ACTION_PLAN_CONTEXT_CHARS", "4500"))

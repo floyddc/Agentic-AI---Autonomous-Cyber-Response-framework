@@ -25,10 +25,11 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
 
 
 def embed_query(text: str) -> List[float]:
-
     truncated = text[:_MAX_PROMPT_CHARS]
 
-    return _client.embeddings(
+    response = _client.embed(
         model=config.EMBEDDING_MODEL,
-        prompt=truncated,
-    )["embedding"]
+        input=[truncated],
+    )
+
+    return response["embeddings"][0]

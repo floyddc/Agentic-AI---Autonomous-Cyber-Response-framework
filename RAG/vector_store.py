@@ -4,7 +4,7 @@ from tqdm import tqdm
 from . import config
 from .embeddings import embed_texts
 
-_BATCH_SIZE = 64
+_BATCH_SIZE = 128
 
 def _client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=config.INDICES_DIR)

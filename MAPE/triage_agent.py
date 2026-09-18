@@ -1,4 +1,5 @@
 import json
+import time
 import logging
 from typing import Any, Dict, Optional
 from ollama import Client
@@ -66,7 +67,7 @@ class TriageAgent:
                     ),
                 },
             ]
-            response = self.client.chat(model=self.model, messages=messages, format="json")
+            response = self.client.chat(model=self.model, messages=messages, format="json", keep_alive=-1)
             content = response["message"]["content"]
             data = json.loads(content)
             if data.get("severity") not in VALID_SEVERITIES:
@@ -77,26 +78,43 @@ class TriageAgent:
             return None
 
     def triage(self, incident_id: int, raw_payload: Dict[str, Any], source: str, context: str = "") -> Dict[str, Any]:
-        with logging_agent.track("triage_agent", "triage", incident_id=incident_id):
-            result = self._llm_triage(raw_payload, source, context)
-            if result is None:
-                result = {
-                    "summary": f"{source} alert",
-                    "description": json.dumps(raw_payload, ensure_ascii=False),
-                    "category": "unknown",
-                    "severity": self._heuristic_severity(raw_payload)
-                }
 
-            self.registry.update_fields(
-                incident_id,
-                summary=result.get("summary"),
-                description=result.get("description"),
-                severity=result.get("severity")
-            )
-            self.registry.log_action(
-                incident_id,
-                agent="triage_agent",
-                action="triaged",
-                details=result
-            )
-            return result
+        start = time.perf_counter()
+        result = self._llm_triage(raw_payload, source, context)
+        llm_total_ms = (time.perf_counter() - start) * 1000
+        fallback_used = result is None
+
+        if result is None:
+            result = {
+                "summary": f"{source} alert",
+                "description": json.dumps(raw_payload, ensure_ascii=False),
+                "category": "unknown",
+                "severity": self._heuristic_severity(raw_payload)
+            }
+
+        self.registry.update_fields(
+            incident_id,
+            summary=result.get("summary"),
+            description=result.get("description"),
+            severity=result.get("severity")
+        )
+
+        self.registry.log_action(
+            incident_id,
+            agent="triage_agent",
+            action="triaged",
+            details=result
+        )
+
+        logging_agent.record("triage_agent", "triage", status="success", duration_ms=llm_total_ms, incident_id=incident_id,
+            details={
+                "model": self.model,
+                "fallback_used": fallback_used,
+                "context_length": len(context or ""),
+                "raw_payload_length": len(json.dumps(raw_payload, ensure_ascii=False, default=str)),
+                "severity": result.get("severity"),
+                "category": result.get("category")
+            }
+        )
+
+        return result
