@@ -337,7 +337,7 @@ class Orchestrator:
                 try:
                     action = self.router.decide(state)
 
-                    logger.info("Incident %s - router decision=%s step=%s phase=%s", incident_id, action, step, state.get("phase"))
+                    logger.info("Incident %s - router decision=%s step=%s", incident_id, action, step)
 
                     self.registry.log_action(
                         incident_id,
