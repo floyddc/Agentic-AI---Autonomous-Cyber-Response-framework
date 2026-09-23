@@ -83,10 +83,6 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
   - `docker exec -it python-app python -m RAG.build_index`
 
-**4. Test del flusso completo (Retrieve Agent + Response Agent):**
-
-  - `docker exec python-app python -c "from RAG.api import query_rag; print(query_rag('How can PowerShell be used for execution?'))"`
-
 
 ## Eseguire il workflow MAPE-K
 Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ActionPlannerAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
