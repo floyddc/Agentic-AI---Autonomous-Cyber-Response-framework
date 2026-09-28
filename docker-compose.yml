@@ -73,12 +73,16 @@ services:
     container_name: python-app
 
     depends_on:
-      # ollama:
-       #  condition: service_healthy
       postgres:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      emqx-1:
+        condition: service_healthy
+      emqx-2:
+        condition: service_healthy
+      emqx-3:
+        condition: service_healthy
 
     environment:
       OLLAMA_HOST: http://ollama:11434
@@ -97,6 +101,8 @@ services:
       OTEL_SERVICE_NAME: cyber-response-agents
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_METRIC_EXPORT_INTERVAL_MS: "5000"
+      MQTT_BROKERS: "emqx-1:1883,emqx-2:1883,emqx-3:1883"
+      MQTT_CLIENT_ID: "cyber-response-orchestrator"
 
     volumes:
       - hf_cache:/root/.cache/huggingface
@@ -113,9 +119,133 @@ services:
 
     command: python main.py
 
+    networks:
+      - default
+      - emqx-net
+
     restart: unless-stopped
+
+  emqx-1:
+    image: emqx:5.8.8
+
+    hostname: node1.emqx.local
+
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+      - "18083:18083"
+
+    environment:
+      EMQX_NODE__NAME: "emqx@node1.emqx.local"
+      EMQX_NODE__COOKIE: "cyberresponse-emqx-cluster"
+
+      EMQX_CLUSTER__DISCOVERY_STRATEGY: "static"
+      EMQX_CLUSTER__STATIC__SEEDS: '["emqx@node1.emqx.local","emqx@node2.emqx.local","emqx@node3.emqx.local"]'
+
+    volumes:
+      - emqx1_data:/opt/emqx/data
+      - emqx1_log:/opt/emqx/log
+
+    networks:
+      emqx-net:
+        aliases:
+          - node1.emqx.local
+
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    restart: unless-stopped
+
+  emqx-2:
+    image: emqx:5.8.8
+
+    hostname: node2.emqx.local
+
+    ports:
+      - "1884:1883"
+      - "8085:8083"
+      - "8086:8084"
+      - "18084:18083"
+
+    environment:
+      EMQX_NODE__NAME: "emqx@node2.emqx.local"
+      EMQX_NODE__COOKIE: "cyberresponse-emqx-cluster"
+
+      EMQX_CLUSTER__DISCOVERY_STRATEGY: "static"
+      EMQX_CLUSTER__STATIC__SEEDS: '["emqx@node1.emqx.local","emqx@node2.emqx.local","emqx@node3.emqx.local"]'
+
+    volumes:
+      - emqx2_data:/opt/emqx/data
+      - emqx2_log:/opt/emqx/log
+
+    networks:
+      emqx-net:
+        aliases:
+          - node2.emqx.local
+
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    restart: unless-stopped
+
+  emqx-3:
+    image: emqx:5.8.8
+
+    hostname: node3.emqx.local
+
+    ports:
+      - "1885:1883"
+      - "8087:8083"
+      - "8088:8084"
+      - "18085:18083"
+
+    environment:
+      EMQX_NODE__NAME: "emqx@node3.emqx.local"
+      EMQX_NODE__COOKIE: "cyberresponse-emqx-cluster"
+
+      EMQX_CLUSTER__DISCOVERY_STRATEGY: "static"
+      EMQX_CLUSTER__STATIC__SEEDS: '["emqx@node1.emqx.local","emqx@node2.emqx.local","emqx@node3.emqx.local"]'
+
+    volumes:
+      - emqx3_data:/opt/emqx/data
+      - emqx3_log:/opt/emqx/log
+
+    networks:
+      emqx-net:
+        aliases:
+          - node3.emqx.local
+
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    restart: unless-stopped
+
+
+networks:
+  emqx-net:
+    driver: bridge
+
 
 volumes:
   ollama_data:
   pgdata:
   hf_cache:
+  emqx1_data:
+  emqx1_log:
+  emqx2_data:
+  emqx2_log:
+  emqx3_data:
+  emqx3_log:

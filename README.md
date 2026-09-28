@@ -119,3 +119,27 @@ La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent
   - `docker exec -it python-app python -m MAPE.logging_agent --clear` per pulire.
 
 Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. Gli script SQL dentro `postgres/init/` vengono eseguiti automaticamente solo quando il volume Postgres viene creato per la prima volta.
+
+
+## [WORK IN PROGRESS] MQTT BROKER CLUSTER
+
+- Avviare i 3 broker con `docker compose up -d emqx-1 emqx-2 emqx-3`.
+
+- Check del cluster con `docker compose exec emqx-1 emqx ctl cluster status`.
+  - Dovrebbe apparire un output del tipo:
+     ```
+     Cluster status: #{running_nodes =>
+                      ['emqx@node1.emqx.local','emqx@node2.emqx.local','emqx@node3.emqx.local'],
+                  stopped_nodes => []}
+     ```
+
+- Check del failover con `docker compose stop emqx-1` e poi `docker compose exec emqx-2 emqx ctl cluster status`.
+  - Dovrebbe apparire un output del tipo:
+     ```
+     Cluster status: #{running_nodes =>
+                      ['emqx@node2.emqx.local','emqx@node3.emqx.local'],
+                  stopped_nodes => ['emqx@node1.emqx.local']}
+     ```
+  - Riavvio del broker con `docker compose start emqx-1`
+
+- Test della connessione e pubblicazione messaggi: `docker compose exec python python test_mqtt.py`
