@@ -19,6 +19,18 @@
       "max_auto_severity": "high"
     },
     {
+      "action": "block_domain",
+      "description": "Block resolution or network access to a suspicious or malicious domain through DNS, firewall, or secure web gateway controls.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "block_url",
+      "description": "Block access to a specific malicious URL through the secure web gateway or proxy.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
       "action": "monitor_process_network_traffic",
       "description": "Increase monitoring of network connections created by processes on the affected host.",
       "required_fields": ["target"],
@@ -33,6 +45,18 @@
     {
       "action": "audit_power_shell_executions",
       "description": "Collect and review PowerShell execution history and command-line telemetry on the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "collect_endpoint_artifacts",
+      "description": "Collect relevant endpoint artifacts such as process lists, autoruns, event logs, network connections, and suspicious files for investigation.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "capture_memory",
+      "description": "Capture a memory image from the affected endpoint for forensic analysis.",
       "required_fields": ["target"],
       "max_auto_severity": "medium"
     },
@@ -55,14 +79,50 @@
       "max_auto_severity": "critical"
     },
     {
+      "action": "delete_file",
+      "description": "Remove a confirmed malicious file from the affected host.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
       "action": "disable_account",
       "description": "Disable a compromised user/service account in the IdP.",
       "required_fields": ["target"],
       "max_auto_severity": "medium"
     },
     {
+      "action": "revoke_sessions",
+      "description": "Revoke active authentication sessions and refresh tokens for a potentially compromised account.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
       "action": "reset_credentials",
       "description": "Force a credential reset for a compromised account.",
+      "required_fields": ["target"],
+      "max_auto_severity": "medium"
+    },
+    {
+      "action": "disable_persistence",
+      "description": "Disable a confirmed malicious persistence mechanism such as a scheduled task, service, startup item, or autorun entry.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "block_hash",
+      "description": "Block execution of a known malicious file hash through EDR or application control.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "force_edr_scan",
+      "description": "Start an on-demand EDR/antimalware scan on the affected endpoint.",
+      "required_fields": ["target"],
+      "max_auto_severity": "high"
+    },
+    {
+      "action": "increase_endpoint_telemetry",
+      "description": "Temporarily increase endpoint telemetry and process, authentication, and network event collection for the affected host.",
       "required_fields": ["target"],
       "max_auto_severity": "medium"
     },

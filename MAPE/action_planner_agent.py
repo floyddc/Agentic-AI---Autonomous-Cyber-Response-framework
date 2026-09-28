@@ -1,6 +1,9 @@
 import json
 import logging
 import time
+import glob
+import os
+from typing import Any, Dict, List
 from ollama import Client
 from RAG import config
 from RAG.context_builder import build_context
@@ -16,15 +19,19 @@ SYSTEM_PROMPT = (
 )
 
 ACTION_PLAN_SYSTEM_PROMPT = (
-    "You are the Response Agent in a multi-agent cyber-response system. Given an incident "
-    "and retrieved context (MITRE ATT&CK knowledge, past incidents, policies, action catalog), "
-    "propose a remediation action plan. Respond with ONLY a compact JSON object with keys: "
-    "\"summary\" (short rationale) and \"actions\" (a list of objects, each with "
-    "\"action\" = one of the known action-catalog action names, \"target\" = the host/ip/account "
-    "affected, and \"justification\"). No prose, no markdown, JSON only. "
-    "This plan will be checked by a policy/validation layer before response."
+    "You are the Response Agent in a multi-agent cyber-response system. "
+    "Given an incident, retrieved context, and the provided ACTION CATALOG, "
+    "propose a remediation action plan. "
+    "You MUST use ONLY action names that appear exactly in the ACTION CATALOG. "
+    "NEVER invent, rename, or paraphrase an action. "
+    "Respect the required_fields defined by the catalog. "
+    "Respond with ONLY a compact JSON object with keys: "
+    "\"summary\" and \"actions\". "
+    "Each action must contain \"action\", \"target\" when required, "
+    "and \"justification\". "
+    "No prose, no markdown, JSON only. "
+    "This plan will be checked by a policy/validation layer before execution."
 )
-
 
 class ActionPlannerAgent:
 
@@ -32,6 +39,29 @@ class ActionPlannerAgent:
         self.model = model
         self.client = Client(host=host)
         self.registry = registry or IncidentRegistry()
+        self.actions_catalog = self._load_actions_catalog()
+        self.allowed_actions = {
+            action["action"]
+            for action in self.actions_catalog["actions"]
+        }
+
+    def _load_actions_catalog(self) -> dict:
+        catalog_path = os.path.join(
+            config.ACTIONS_CATALOG_DIR,
+            "actions_catalog.json"
+        )
+
+        with open(catalog_path, "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+
+        if not isinstance(catalog, dict):
+            raise ValueError("Invalid actions catalog")
+
+        if not isinstance(catalog.get("actions"), list):
+            raise ValueError("actions_catalog.json must contain an 'actions' list")
+
+        return catalog
+
 
     def _parse_action_plan(self, content: str) -> dict:
         content = content.strip()
@@ -59,7 +89,17 @@ class ActionPlannerAgent:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
             ]
-            response = self.client.chat(model=self.model, messages=messages)
+
+            response = self.client.chat(
+                model=self.model,
+                messages=messages,
+                format="json",
+                keep_alive=-1,  
+                options={
+                    "temperature": 0.0,      
+                    "num_predict": 256
+                }
+            )            
             answer = response["message"]["content"]
 
             try:
@@ -116,15 +156,6 @@ class ActionPlannerAgent:
             plan = {
                 "summary": "LLM plan unavailable; escalate the alert for analyst review.",
                 "actions": [{"action": "notify_analyst", "justification": "Automatic planning failed because the LLM returned invalid JSON."}],
-            }
-
-        except Exception:
-            fallback_used = True
-            fallback_reason = "llm_or_validation_error"
-            logger.exception("Failed to obtain/parse action plan from LLM")
-            plan = {
-                "summary": "LLM plan unavailable; escalate the alert for analyst review.",
-                "actions": [{"action": "notify_analyst", "justification": "Automatic planning failed."}],
             }
 
         # total execution time
