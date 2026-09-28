@@ -81,6 +81,7 @@ class ActionPlannerAgent:
 
         return plan
 
+
     def ask(self, question: str, context: str = None, incident_id: int = None) -> str:
         with logging_agent.track("action_planner_agent", "ask", incident_id=incident_id):
             if context is None:
@@ -129,12 +130,30 @@ class ActionPlannerAgent:
         }
 
         question = json.dumps(prompt_incident, ensure_ascii=False, default=str)
-
         context = (context or "")[:config.ACTION_PLAN_CONTEXT_CHARS]
+
+        catalog_for_llm = [
+            {
+                "action": action["action"],
+                "description": action.get("description"),
+                "required_fields": action.get("required_fields", [])
+            }
+            for action in self.actions_catalog["actions"]
+        ]
+        catalog_text = json.dumps(catalog_for_llm, ensure_ascii=False, indent=2)
 
         messages = [
             {"role": "system", "content": ACTION_PLAN_SYSTEM_PROMPT},
             {"role": "user", "content": f"Context:\n{context}\n\nIncident: {question}"},
+            {
+                "role": "user", "content": (
+                                    f"ACTION CATALOG:\n"
+                                    f"{catalog_text}\n\n"
+                                    f"RETRIEVED CONTEXT:\n"
+                                    f"{context}\n\n"
+                                    f"INCIDENT:\n"
+                                    f"{question}")
+            }
         ]
 
         try:
