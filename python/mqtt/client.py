@@ -37,10 +37,8 @@ class MQTTClient:
         self.client.on_disconnect = self._on_disconnect
         self.client.on_publish = self._on_publish
         self.client.on_message = self._on_message
-
         self._message_callback: Optional[Callable] = None
         self._connected = False
-
         self._current_broker_index = 0
 
     @staticmethod
@@ -74,17 +72,10 @@ class MQTTClient:
     ):
         if reason_code == 0:
             self._connected = True
-
-            logger.info(
-                "Connected to MQTT broker %s:%s",
-                *self.brokers[self._current_broker_index],
-            )
+            logger.info("Connected to MQTT broker %s:%s", *self.brokers[self._current_broker_index])
 
         else:
-            logger.error(
-                "MQTT connection failed: %s",
-                reason_code,
-            )
+            logger.error("MQTT connection failed: %s", reason_code)
 
     def _on_disconnect(
         self,
@@ -95,11 +86,7 @@ class MQTTClient:
         properties,
     ):
         self._connected = False
-
-        logger.warning(
-            "Disconnected from MQTT broker: %s",
-            reason_code,
-        )
+        logger.warning("Disconnected from MQTT broker: %s", reason_code)
 
     def _on_publish(
         self,
@@ -109,10 +96,7 @@ class MQTTClient:
         reason_code,
         properties,
     ):
-        logger.debug(
-            "MQTT message published: mid=%s",
-            mid,
-        )
+        logger.debug("MQTT message published: mid=%s", mid)
 
     def _on_message(
         self,
@@ -120,11 +104,7 @@ class MQTTClient:
         userdata,
         message,
     ):
-        logger.info(
-            "MQTT message received topic=%s payload=%s",
-            message.topic,
-            message.payload.decode("utf-8", errors="replace"),
-        )
+        logger.info("MQTT message received topic=%s payload=%s", message.topic, message.payload.decode("utf-8", errors="replace"))
 
         if self._message_callback:
             self._message_callback(message)
@@ -133,27 +113,13 @@ class MQTTClient:
         last_error = None
 
         for offset in range(len(self.brokers)):
-            index = (
-                self._current_broker_index + offset
-            ) % len(self.brokers)
-
+            index = (self._current_broker_index + offset) % len(self.brokers)
             host, port = self.brokers[index]
 
             try:
-                logger.info(
-                    "Connecting to MQTT broker %s:%s",
-                    host,
-                    port,
-                )
-
-                self.client.connect(
-                    host,
-                    port,
-                    keepalive=60,
-                )
-
+                logger.info("Connecting to MQTT broker %s:%s", host, port)
+                self.client.connect(host, port, keepalive=60)
                 self._current_broker_index = index
-
                 self.client.loop_start()
 
                 # Wait briefly for CONNACK.
@@ -165,23 +131,13 @@ class MQTTClient:
                 if self._connected:
                     return
 
-                raise RuntimeError(
-                    f"MQTT broker {host}:{port} did not accept connection"
-                )
+                raise RuntimeError(f"MQTT broker {host}:{port} did not accept connection")
 
             except Exception as exc:
                 last_error = exc
+                logger.warning("Unable to connect to MQTT broker %s:%s: %s", host, port, exc)
 
-                logger.warning(
-                    "Unable to connect to MQTT broker %s:%s: %s",
-                    host,
-                    port,
-                    exc,
-                )
-
-        raise RuntimeError(
-            "Unable to connect to any MQTT broker"
-        ) from last_error
+        raise RuntimeError("Unable to connect to any MQTT broker") from last_error
 
     def publish(
         self,
@@ -195,10 +151,7 @@ class MQTTClient:
             raise RuntimeError("MQTT client is not connected")
 
         if not isinstance(payload, str):
-            payload = json.dumps(
-                payload,
-                ensure_ascii=False,
-            )
+            payload = json.dumps(payload, ensure_ascii=False)
 
         result = self.client.publish(
             topic,
@@ -210,9 +163,7 @@ class MQTTClient:
         result.wait_for_publish()
 
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            raise RuntimeError(
-                f"MQTT publish failed: rc={result.rc}"
-            )
+            raise RuntimeError(f"MQTT publish failed: rc={result.rc}")
 
     def subscribe(
         self,
@@ -232,16 +183,9 @@ class MQTTClient:
         )
 
         if result != mqtt.MQTT_ERR_SUCCESS:
-            raise RuntimeError(
-                f"MQTT subscribe failed: rc={result}"
-            )
+            raise RuntimeError(f"MQTT subscribe failed: rc={result}")
 
-        logger.info(
-            "Subscribed to MQTT topic=%s qos=%s mid=%s",
-            topic,
-            qos,
-            mid,
-        )
+        logger.info("Subscribed to MQTT topic=%s qos=%s mid=%s", topic, qos, mid)
 
     def disconnect(self):
         if self._connected:

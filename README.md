@@ -16,7 +16,7 @@
   processors=8
   swap=4GB
   ```
-  - `memory=8GB` se hai almeno 16GB di RAM.
+  - `memory=8-12GB` se hai almeno 16GB di RAM.
 
 **2. Riavvio WSL:** `wsl --shutdown` e riavvia Docker Desktop.
 
@@ -101,15 +101,6 @@ Nel JSON restituito verificare:
 
 Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azione non presente nel catalogo, oppure nessuna azione, il risultato atteso e' `status: "failed"` con `phase: "validation"`: questo indica un rifiuto corretto della policy, non un errore del database.
 
-## Controllare stato e audit trail
-Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
-
-  - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT id, source, external_id, severity, status, created_at, updated_at FROM incidents WHERE id = <INCIDENT_ID>;"`
-
-  - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"`
-
-La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
-
 ## Controllare metriche e log
 
   - `docker exec -it python-app python -m MAPE.logging_agent --tail <N>`
@@ -121,11 +112,21 @@ La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent
 Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. Gli script SQL dentro `postgres/init/` vengono eseguiti automaticamente solo quando il volume Postgres viene creato per la prima volta.
 
 
+## Controllare stato e audit trail
+Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
+
+  - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT id, source, external_id, severity, status, created_at, updated_at FROM incidents WHERE id = <INCIDENT_ID>;"`
+
+  - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"`
+
+La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
+
+
 ## [WORK IN PROGRESS] MQTT BROKER CLUSTER
 
 - Avviare i 3 broker con `docker compose up -d emqx-1 emqx-2 emqx-3`.
 
-- Check del cluster con `docker compose exec emqx-1 emqx ctl cluster status`.
+- Dopo qualche seconod, check del cluster con `docker compose exec emqx-1 emqx ctl cluster status`.
   - Dovrebbe apparire un output del tipo:
      ```
      Cluster status: #{running_nodes =>
@@ -143,3 +144,14 @@ Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. 
   - Riavvio del broker con `docker compose start emqx-1`
 
 - Test della connessione e pubblicazione messaggi: `docker compose exec python python test_mqtt.py`
+  - Dovrebbe apparire un output del tipo:
+    ```
+    2026-09-29 07:53:19,694 INFO MQTT.client: Connecting to MQTT broker emqx-1:1883
+    2026-09-29 07:53:19,860 INFO MQTT.client: Connected to MQTT broker emqx-1:1883
+    2026-09-29 07:53:19,903 INFO MQTT.client: Subscribed to MQTT topic=cyberresponse/test qos=1 mid=1
+    2026-09-29 07:53:20,904 INFO __main__: Publishing test message
+    2026-09-29 07:53:20,911 INFO MQTT.client: MQTT message received topic=cyberresponse/test payload={"event_id": "mqtt-test-001", "message": "hello from cyber-response", "source": "python"}
+    2026-09-29 07:53:20,911 INFO __main__: TEST RECEIVED: topic=cyberresponse/test payload={"event_id": "mqtt-test-001", "message": "hello from cyber-response", "source": "python"}
+    2026-09-29 07:53:22,911 WARNING MQTT.client: Disconnected from MQTT broker: Normal disconnection
+    2026-09-29 07:53:22,912 INFO __main__: MQTT test completed successfully
+    ```

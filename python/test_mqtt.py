@@ -1,8 +1,6 @@
 import logging
 import time
-
-from mqtt.client import MQTTClient
-
+from MQTT.client import MQTTClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,22 +8,15 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-
 TOPIC = "cyberresponse/test"
 
 
 def on_message(message):
-    logger.info(
-        "TEST RECEIVED: topic=%s payload=%s",
-        message.topic,
-        message.payload.decode(),
-    )
+    logger.info("TEST RECEIVED: topic=%s payload=%s", message.topic, message.payload.decode())
 
 
 def main():
     client = MQTTClient()
-
     client.connect()
 
     client.subscribe(
@@ -52,9 +43,7 @@ def main():
 
     # Give the MQTT network loop time to receive the message.
     time.sleep(2)
-
     client.disconnect()
-
     logger.info("MQTT test completed successfully")
 
 

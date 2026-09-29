@@ -6,7 +6,7 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir \
         --index-url https://download.pytorch.org/whl/cpu \
-        torch \
+        torch==2.14.0+cpu \
     && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
