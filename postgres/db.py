@@ -4,7 +4,6 @@ import psycopg2.extras
 from RAG import config
 
 def connect(dbname: str):
-
     return psycopg2.connect(
         host=config.POSTGRES_HOST,
         port=config.POSTGRES_PORT,
@@ -13,6 +12,7 @@ def connect(dbname: str):
         password=config.POSTGRES_PASSWORD,
     )
 
+
 @contextmanager
 def cursor(dbname: str):
     conn = connect(dbname)
@@ -20,5 +20,20 @@ def cursor(dbname: str):
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             yield cur
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+@contextmanager
+def transaction(dbname: str):
+    conn = connect(dbname)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()

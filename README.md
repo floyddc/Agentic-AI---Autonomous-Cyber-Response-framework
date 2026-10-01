@@ -1,5 +1,18 @@
 # Agentic AI - Autonomous Cyber-Response framework
 
+- [Tasks](#tasks)
+- [Obiettivi](#obiettivi)
+- [Passi preliminari](#passi-preliminari)
+- [Avvio dei container](#avvio-dei-container)
+  - [Preparare un alert EDR di test](#preparare-un-alert-edr-di-test)
+- [Setup del RAG Engine](#setup-del-rag-engine)
+- [Eseguire il workflow MAPE-K](#eseguire-il-workflow-mape-k)
+- [Controllare metriche e log](#controllare-metriche-e-log)
+- [Controllare stato e audit trail](#controllare-stato-e-audit-trail)
+- [MQTT Broker Cluster](#mqtt-broker-cluster)
+  - [Testing](#testing)
+
+
 ## Tasks
 - Sviluppo degli AI Agents per l'ingestion, l'interpretazione e la classificazione degli eventi di sicurezza EDR.
 - Sviluppo e integrazione delle logiche di orchestrazione con le API XDR per l'esecuzione automatizzata del contenimento.
@@ -122,7 +135,7 @@ Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
 La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
 
 
-## [WORK IN PROGRESS] MQTT BROKER CLUSTER
+## MQTT Broker Cluster
 
 - Avviare i 3 broker con `docker compose up -d emqx-1 emqx-2 emqx-3`.
 
@@ -143,15 +156,14 @@ La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent
      ```
   - Riavvio del broker con `docker compose start emqx-1`
 
-- Test della connessione e pubblicazione messaggi: `docker compose exec python python test_mqtt.py`
-  - Dovrebbe apparire un output del tipo:
-    ```
-    2026-09-29 07:53:19,694 INFO MQTT.client: Connecting to MQTT broker emqx-1:1883
-    2026-09-29 07:53:19,860 INFO MQTT.client: Connected to MQTT broker emqx-1:1883
-    2026-09-29 07:53:19,903 INFO MQTT.client: Subscribed to MQTT topic=cyberresponse/test qos=1 mid=1
-    2026-09-29 07:53:20,904 INFO __main__: Publishing test message
-    2026-09-29 07:53:20,911 INFO MQTT.client: MQTT message received topic=cyberresponse/test payload={"event_id": "mqtt-test-001", "message": "hello from cyber-response", "source": "python"}
-    2026-09-29 07:53:20,911 INFO __main__: TEST RECEIVED: topic=cyberresponse/test payload={"event_id": "mqtt-test-001", "message": "hello from cyber-response", "source": "python"}
-    2026-09-29 07:53:22,911 WARNING MQTT.client: Disconnected from MQTT broker: Normal disconnection
-    2026-09-29 07:53:22,912 INFO __main__: MQTT test completed successfully
-    ```
+
+### Testing
+- Connessione e pubblicazione messaggi: `docker compose exec python python -m tests.test_mqtt_conn`.
+
+- Pubblicazione eventi: `docker compose exec python python -m tests.test_mqtt_events`.
+
+- Workflow con worker fittizio: `docker compose exec python python -m tests.test_worker`.
+
+- Workflow con due workers fittizi in contemporanea: `docker compose exec python python -m tests.test_worker_group`
+
+- Fallimento di uno dei due workers: `docker compose exec python python -m tests.test_worker_failover`

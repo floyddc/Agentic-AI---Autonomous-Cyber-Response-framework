@@ -102,7 +102,6 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_METRIC_EXPORT_INTERVAL_MS: "5000"
       MQTT_BROKERS: "emqx-1:1883,emqx-2:1883,emqx-3:1883"
-      MQTT_CLIENT_ID: "cyber-response-orchestrator"
 
     volumes:
       - hf_cache:/root/.cache/huggingface

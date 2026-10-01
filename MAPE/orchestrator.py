@@ -42,7 +42,7 @@ class Router:
         if phase == NEW: return ACTION_RETRIEVE
         if phase == "retrieved": return ACTION_TRIAGE
         if phase == TRIAGED: return ACTION_PLAN
-        if phase == "response_proposed": return ACTION_VALIDATE
+        if phase == "action_proposed": return ACTION_VALIDATE
         if phase == VALIDATED: return ACTION_EXECUTE
         if phase == AWAITING_HUMAN_APPROVAL: return ACTION_WAIT_FOR_HUMAN
         if phase == RESPONDED: return ACTION_END
@@ -145,7 +145,7 @@ class Orchestrator:
         if result.get("error"):
             raise RuntimeError(str(result["error"]))
 
-        self._set_phase(incident_id, state, "retrieved", persist=False)
+        self._set_phase(incident_id, state, "retrieved")
 
         return result
     
@@ -184,7 +184,7 @@ class Orchestrator:
         if not isinstance(action_plan, dict):
             raise RuntimeError("ActionPlannerAgent returned an invalid action plan")
 
-        self._set_phase(incident_id, state, "response_proposed", persist=False)
+        self._set_phase(incident_id, state, "action_proposed")
 
         return action_plan
 

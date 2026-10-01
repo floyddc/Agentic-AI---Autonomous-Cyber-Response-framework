@@ -19,12 +19,7 @@ def main():
     client = MQTTClient()
     client.connect()
 
-    client.subscribe(
-        TOPIC,
-        qos=1,
-        callback=on_message,
-    )
-
+    client.subscribe(TOPIC, qos=1, callback=on_message)
     time.sleep(1)
 
     payload = {
@@ -35,14 +30,9 @@ def main():
 
     logger.info("Publishing test message")
 
-    client.publish(
-        TOPIC,
-        payload,
-        qos=1,
-    )
-
-    # Give the MQTT network loop time to receive the message.
+    client.publish(TOPIC, payload, qos=1)
     time.sleep(2)
+    
     client.disconnect()
     logger.info("MQTT test completed successfully")
 
