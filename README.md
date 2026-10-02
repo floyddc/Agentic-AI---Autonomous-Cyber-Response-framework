@@ -164,6 +164,15 @@ La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent
 
 - Workflow con worker fittizio: `docker compose exec python python -m tests.test_worker`.
 
-- Workflow con due workers fittizi in contemporanea: `docker compose exec python python -m tests.test_worker_group`
+- Workflow con due workers fittizi in contemporanea: `docker compose exec python python -m tests.test_worker_group`.
 
-- Fallimento di uno dei due workers: `docker compose exec python python -m tests.test_worker_failover`
+- Fallimento di uno dei due workers: `docker compose exec python python -m tests.test_worker_failover`.
+
+
+## Grafana
+- Visualizzabile su `localhost:3000`.
+  
+  - Credenziali di default: `admin / admin`. 
+
+## Prometheus
+- Visualizzabile su `localhost:9090`.
