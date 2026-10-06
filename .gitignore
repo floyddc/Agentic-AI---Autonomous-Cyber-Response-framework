@@ -1,8 +1,11 @@
 __pycache__
 knowledge/base/*
 !knowledge/base/.gitkeep
-knowledge/raw_data/*
+knowledge/raw_data/edr_alerts/test_alert*
 !knowledge/raw_data/.gitkeep
 knowledge/indices/*
 !knowledge/indices/.gitkeep
 .env
+todo.md
+report*
+*.pdf

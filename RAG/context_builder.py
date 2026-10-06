@@ -1,4 +1,4 @@
-from . import config
+import config
 from .retriever import retrieve, format_context
 from typing import Dict, Optional, Any
 

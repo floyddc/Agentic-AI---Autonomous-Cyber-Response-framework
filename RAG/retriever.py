@@ -1,6 +1,6 @@
 import time
 from typing import Any, Dict, List, Optional
-from . import config
+import config
 from .embeddings import embed_query
 from .reranker import rerank
 from .vector_store import get_collection

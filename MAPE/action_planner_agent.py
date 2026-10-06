@@ -5,33 +5,12 @@ import glob
 import os
 from typing import Any, Dict, List
 from ollama import Client
-from RAG import config
+import config
 from RAG.context_builder import build_context
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = (
-    "You are the Response Agent in a multi-agent cyber-response system. "
-    "Use the retrieved context to reason on the incident and provide a grounded answer. "
-    "If the context is insufficient or missing, say so explicitly."
-)
-
-ACTION_PLAN_SYSTEM_PROMPT = (
-    "You are the Response Agent in a multi-agent cyber-response system. "
-    "Given an incident, retrieved context, and the provided ACTION CATALOG, "
-    "propose a remediation action plan. "
-    "You MUST use ONLY action names that appear exactly in the ACTION CATALOG. "
-    "NEVER invent, rename, or paraphrase an action. "
-    "Respect the required_fields defined by the catalog. "
-    "Respond with ONLY a compact JSON object with keys: "
-    "\"summary\" and \"actions\". "
-    "Each action must contain \"action\", \"target\" when required, "
-    "and \"justification\". "
-    "No prose, no markdown, JSON only. "
-    "This plan will be checked by a policy/validation layer before execution."
-)
 
 class ActionPlannerAgent:
 
@@ -82,39 +61,6 @@ class ActionPlannerAgent:
         return plan
 
 
-    def ask(self, question: str, context: str = None, incident_id: int = None) -> str:
-        with logging_agent.track("action_planner_agent", "ask", incident_id=incident_id):
-            if context is None:
-                context = build_context(question)
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
-            ]
-
-            response = self.client.chat(
-                model=self.model,
-                messages=messages,
-                format="json",
-                keep_alive=-1,  
-                options={
-                    "temperature": 0.0,      
-                    "num_predict": 256
-                }
-            )            
-            answer = response["message"]["content"]
-
-            try:
-                self.registry.log_action(
-                    incident_id,
-                    agent="action_planner_agent",
-                    action="generated_response",
-                    details={"question": question, "answer": answer},
-                )
-            except Exception:
-                logger.exception("Failed to log action_planner_agent action to the incident registry")
-
-            return answer
-
     def propose_action_plan(self, incident: dict, context: str, incident_id: int = None) -> dict:
 
         start = time.perf_counter()
@@ -143,7 +89,7 @@ class ActionPlannerAgent:
         catalog_text = json.dumps(catalog_for_llm, ensure_ascii=False, indent=2)
 
         messages = [
-            {"role": "system", "content": ACTION_PLAN_SYSTEM_PROMPT},
+            {"role": "system", "content": config.ACTION_PLAN_SYSTEM_PROMPT},
             {"role": "user", "content": f"Context:\n{context}\n\nIncident: {question}"},
             {
                 "role": "user", "content": (

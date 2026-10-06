@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
-from RAG import config
+import config
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
@@ -38,15 +38,13 @@ class ValidationAgent:
         return catalog
 
     def _load_policies(self) -> Dict[str, Any]:
-        merged: Dict[str, Any] = {
-            "severity_order": DEFAULT_SEVERITY_ORDER,
-            "require_human_approval_above_severity": "high",
-            "blocked_actions": [],
-            "max_actions_per_plan": 5,
-        }
-        for doc in _load_json_files(config.POLICIES_DIR):
-            merged.update(doc)
-        return merged
+        documents = _load_json_files(config.POLICIES_DIR)
+
+        if not documents:
+            raise ValueError("No policy file found")
+
+        return documents[0]
+
 
     def validate(self, incident_id: int, action_plan: Dict[str, Any], severity: Optional[str]) -> Tuple[bool, Dict[str, Any]]:
         with logging_agent.track("validation_agent", "validate", incident_id=incident_id):

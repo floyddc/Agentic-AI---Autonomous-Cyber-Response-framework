@@ -2,7 +2,7 @@ import glob
 import os
 from dataclasses import dataclass
 from typing import Iterator, List
-from . import config
+import config
 from .knowledge_store import IncidentHistoryStore, KnowledgeBaseStore
 
 SUPPORTED_EXTENSIONS = (".md", ".txt", ".json")

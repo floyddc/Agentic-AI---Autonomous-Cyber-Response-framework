@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import psycopg2
 import psycopg2.extras
-from RAG import config
+import config
 
 def connect(dbname: str):
     return psycopg2.connect(

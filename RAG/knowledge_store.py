@@ -1,6 +1,6 @@
 import json
 from typing import Any, Dict, List, Optional
-from . import config
+import config
 from postgres.db import cursor
 
 

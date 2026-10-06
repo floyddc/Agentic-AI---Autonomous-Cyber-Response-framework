@@ -6,7 +6,7 @@ import os
 import re
 from typing import Dict, List, Optional
 import requests
-from RAG import config
+import config
 
 MITRE_DATASET = "sarahwei/cyber_MITRE_attack_tactics-and-techniques"
 MITRE_ATTACK_STIX_URL = (

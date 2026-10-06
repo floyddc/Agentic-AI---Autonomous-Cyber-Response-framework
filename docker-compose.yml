@@ -1,36 +1,4 @@
 services:
-  ollama:
-    build:
-      context: ./ollama
-
-    container_name: ollama
-
-    ports:
-      - "11434:11434"
-
-    environment:
-      OLLAMA_CONTEXT_LENGTH: "4096"
-
-    volumes:
-      - ollama_data:/root/.ollama
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/qwen3:0.6b-warmup-complete && test -f /tmp/qwen3:4b-instruct-warmup-complete"]
-      interval: 2s
-      timeout: 5s
-      retries: 50
-      start_period: 30s
-
-    restart: unless-stopped
-
   postgres:
     image: postgres:15
 
@@ -79,7 +47,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.15.0
 
     container_name: prometheus
 
@@ -98,7 +66,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.3
 
     container_name: grafana
 
@@ -115,7 +83,6 @@ services:
       - monitoring
 
     restart: unless-stopped
-
 
   python:
     build:
@@ -137,13 +104,14 @@ services:
         condition: service_healthy
 
     environment:
-      OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: qllama/multilingual-e5-small:q4_k_m
+      OLLAMA_HOST: http://host.docker.internal:11434  
+      EMBEDDING_MODEL: intfloat/multilingual-e5-small
       PLAN_MODEL: qwen3:4b-instruct
       TRIAGE_MODEL: qwen3:0.6b
       RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L2-v2
-      HF_HOME: /root/.cache/huggingface
+      CACHE_DIR: /root/.cache/huggingface
       HF_TOKEN: ${HF_TOKEN}
+      PYTHONPATH: /app:/app/RAG:/app/MAPE:/app/knowledge:/app/postgres:/app/MQTT
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: incident_registry
@@ -153,7 +121,12 @@ services:
       OTEL_SERVICE_NAME: cyber-response-agents
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_METRIC_EXPORT_INTERVAL_MS: "5000"
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
       MQTT_BROKERS: "emqx-1:1883,emqx-2:1883,emqx-3:1883"
+
+    ports:
+      - "127.0.0.1:8000:8000"
 
     volumes:
       - hf_cache:/root/.cache/huggingface
@@ -162,6 +135,7 @@ services:
       - ./knowledge:/app/knowledge
       - ./postgres:/app/postgres
       - ./MAPE:/app/MAPE
+      - ./MQTT:/app/MQTT
 
     working_dir: /app
 
@@ -289,7 +263,6 @@ networks:
     driver: bridge
   emqx-net:
     driver: bridge
-
 
 volumes:
   ollama_data:

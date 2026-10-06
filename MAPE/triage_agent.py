@@ -3,34 +3,11 @@ import time
 import logging
 from typing import Any, Dict, Optional
 from ollama import Client
-from RAG import config
+import config
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
-
-VALID_SEVERITIES = ("low", "medium", "high", "critical")
-
-SYSTEM_PROMPT = (
-    "You are the AI Triage agent in a cyber-response system. "
-    "Given a raw security alert (from EDR/XDR/SIEM), together with "
-    "relevant context retrieved from a cybersecurity knowledge base, "
-    "normalize and triage the incident. "
-
-    "Use the retrieved context as supporting evidence for the triage. "
-    "The raw alert is the primary source of truth. "
-    "Retrieved documents may describe similar incidents, known attack "
-    "patterns, procedures, or historical cases, but they are not "
-    "necessarily applicable to the current alert. "
-
-    "Respond with ONLY a compact JSON object with these keys: "
-    "\"summary\" (short one-line title), "
-    "\"description\" (normalized details), "
-    "\"category\" (best-guess MITRE ATT&CK tactic or attack type), "
-    "\"severity\" (one of: low, medium, high, critical). "
-    "No prose, no markdown, JSON only."
-)
-
 
 class TriageAgent:
 
@@ -54,7 +31,7 @@ class TriageAgent:
             messages = [
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT,
+                    "content": config.TRIAGE_SYSTEM_PROMPT,
                 },
                 {
                     "role": "user",
@@ -70,7 +47,7 @@ class TriageAgent:
             response = self.client.chat(model=self.model, messages=messages, format="json", keep_alive=-1)
             content = response["message"]["content"]
             data = json.loads(content)
-            if data.get("severity") not in VALID_SEVERITIES:
+            if data.get("severity") not in config.VALID_SEVERITIES:
                 data["severity"] = self._heuristic_severity(raw_payload)
             return data
         except Exception:

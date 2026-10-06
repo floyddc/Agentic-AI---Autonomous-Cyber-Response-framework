@@ -2,9 +2,11 @@ import logging
 import signal
 import threading
 import time
+import requests
+from api import create_server
 from ollama import Client
-from RAG import config
-from RAG.reranker import warmup as warmup_reranker_model
+import config
+from MAPE.orchestrator import Orchestrator
 from MQTT.outbox_publisher import OutboxPublisher
 from knowledge.recovery_daemon import MaintenanceDaemon
 
@@ -56,133 +58,83 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 start_background_services()
 
 
-# EMBEDDING MODEL WARMUP ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-def warmup_embedding():
-    print(
-        "-------------------- "
-        "Warming up embedding model... "
-        "--------------------"
-    )
-
-    query = ("EDR alert suspicious PowerShell execution with possible credential theft and lateral movement")
-
-    try:
-        # Model loading / initialization
-        start = time.perf_counter()
-        client.embed(
-            model=config.EMBEDDING_MODEL,
-            input=query,
-            keep_alive=-1,
-        )
-        warmup_ms = (time.perf_counter() - start) * 1000
-
-        # Check if model is actually resident
-        start = time.perf_counter()
-        client.embed(
-            model=config.EMBEDDING_MODEL,
-            input=query,
-            keep_alive=-1,
-        )
-
-        verification_ms = (time.perf_counter() - start) * 1000
-        print(
-            f"-------------------- "
-            f"Embedding warm-up complete. "
-            f"Initial: {warmup_ms:.2f} ms | "
-            f"Verification: {verification_ms:.2f} ms "
-            f"--------------------"
-        )
-        return verification_ms
-
-    except Exception as e:
-        print(
-            f"-------------------- "
-            f"Embedding warm-up failed: {e} "
-            f"--------------------"
-        )
-
-        return None
-
-
-# RERANKER MODEL WARMUP ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-def warmup_reranker():
-    print(
-        "-------------------- "
-        "Warming up reranker... "
-        "--------------------"
-    )
+# PIPELINE WARMUP ----------------------------------------------------------------------------------------------------------------------------------------------------------    
+def warmup_pipeline():
+    print("=" * 60)
+    print(f"                    Warming up the entire pipeline...")
+    print("=" * 60)
 
     try:
         start = time.perf_counter()
-        warmup_reranker_model()
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        print(
-            f"-------------------- "
-            f"Reranker warm-up complete: "
-            f"{elapsed_ms:.2f} ms "
-            f"--------------------"
-        )
-        return elapsed_ms
+        with open(
+            "/app/knowledge/raw_data/edr_alerts/warmup_alert.json",
+            "r",
+            encoding="utf-8"
+        ) as f:
+            alert_data = f.read()
 
+            response = requests.post(
+                "http://localhost:8000/alerts",
+                headers={"Content-Type": "application/json"},
+                data=alert_data
+            )
+            response.raise_for_status()
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            print("=" * 60)
+            print(f"                    Pipeline warm-up complete: {elapsed_ms:.2f} ms | status={response.status_code}")
+            print("=" * 60)
+            return elapsed_ms
+    
     except Exception as e:
-        print(
-            f"-------------------- "
-            f"Reranker warm-up failed: {e} "
-            f"--------------------"
-        )
+        print("!" * 60)
+        print(f"                    Pipeline warm-up failed: {e}")
+        print("!" * 60)
         return None
+    
+    
 
-
-# LLM MODEL WARMUP ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-def warmup_qwen(model_name):
-    print(
-        f"-------------------- "
-        f"Warming up {model_name}... "
-        f"--------------------"
-    )
-
-    try:
-        start = time.perf_counter()
-        client.chat(
-            model=model_name,
-            messages=[{"role": "user", "content": "Warm-up"}],
-            keep_alive=-1,
-        )
-
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        print(
-            f"-------------------- "
-            f"{model_name} warm-up complete: "
-            f"{elapsed_ms:.2f} ms "
-            f"(keep_alive=-1) "
-            f"--------------------"
-        )
-        return elapsed_ms
-
-    except Exception as e:
-        print(
-            f"-------------------- "
-            f"{model_name} warm-up failed: {e} "
-            f"--------------------"
-        )
-        return None
-
-
-# RUN ALL WARMUP ----------------------------------------------------------------------------------------------------------------------------------------------------------    
 print("\n")
-print("=" * 60)
-print("                    MODEL WARM-UP")
-print("=" * 60)
+print("⏳" * 60)
+print("                    SERVER CREATION")
+print("⏳" * 60)
 
-embedding_warmup_ms = warmup_embedding()
-reranker_warmup_ms = warmup_reranker()
-triage_warmup_ms = warmup_qwen(config.TRIAGE_MODEL)
-planner_warmup_ms = warmup_qwen(config.PLAN_MODEL)
+orchestrator = Orchestrator()
+alert_server = create_server(
+    orchestrator,
+    host=config.API_HOST,
+    port=config.API_PORT,
+)
+api_thread = threading.Thread(
+    target=alert_server.serve_forever,
+    name="alert-api",
+    daemon=True,
+)
+api_thread.start()
+print("✅" * 60)
+logger.info("Alert API listening on %s:%s", config.API_HOST, config.API_PORT)
+print("✅" * 60)
 
-print("=" * 60)
-print("                    WARM-UP COMPLETE - CONTAINER READY")
-print("=" * 60)
+
+if(config.WARMUP_ON):
+    print("\n")
+    print("⏳" * 60)
+    print("                    MODEL WARM-UP")
+    print("⏳" * 60)
+    pipeline_warmup_ms = warmup_pipeline()
+else:
+    print("\n")
+    print("                    WARM-UP OFF")
+
+    
+print("✅" * 60)
+print("                    CONTAINER READY")
+print("✅" * 60)
 print("\n")
 
-while not _shutdown_event.is_set():
-    _shutdown_event.wait(timeout=3600)
+try:
+    while not _shutdown_event.wait(timeout=3600):
+        pass
+finally:
+    alert_server.shutdown()
+    alert_server.server_close()
+    api_thread.join(timeout=5)

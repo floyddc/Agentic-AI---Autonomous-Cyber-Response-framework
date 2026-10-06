@@ -475,10 +475,12 @@ if __name__ == "__main__":
         payload = json.loads(input("Raw alert JSON: "))
 
     source = payload.pop("_source", "manual")
+    external_id = payload.pop("external_id", None)
 
     report = handle_alert(
         source=source,
         raw_payload=payload,
+        external_id=external_id,
     )
 
     print(

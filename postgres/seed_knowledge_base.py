@@ -1,5 +1,5 @@
 import os
-from RAG import config
+import config
 from RAG.knowledge_store import KnowledgeBaseStore
 
 CATEGORY_DIRS = {

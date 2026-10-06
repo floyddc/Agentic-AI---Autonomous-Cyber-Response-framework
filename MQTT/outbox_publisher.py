@@ -7,7 +7,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 from MQTT.client import MQTTClient
 from postgres.db import transaction
-from RAG import config
+import config
 
 logger = logging.getLogger(__name__)
 

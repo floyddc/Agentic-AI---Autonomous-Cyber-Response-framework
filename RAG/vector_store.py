@@ -1,7 +1,7 @@
 from typing import List
 import chromadb
 from tqdm import tqdm
-from . import config
+import config
 from .embeddings import embed_texts
 
 _BATCH_SIZE = 128

@@ -1,0 +1,10 @@
+{
+  "_source": "EDR",
+  "external_id": "test-edr-001",
+  "host": "workstation-042",
+  "user": "alice",
+  "alert": "Suspicious PowerShell execution with encoded command",
+  "command_line": "powershell.exe -EncodedCommand ...",
+  "indicators": ["198.51.100.42"],
+  "message": "Possible command and control activity"
+}

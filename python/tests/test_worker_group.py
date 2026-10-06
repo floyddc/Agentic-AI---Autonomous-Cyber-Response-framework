@@ -9,8 +9,7 @@ from MQTT.topics import INCIDENT_CREATED, INCIDENT_RETRIEVED
 from MQTT.outbox_publisher import OutboxPublisher
 from .test_retrieve_worker import TestRetrieveWorker
 from postgres.db import transaction
-from RAG import config
-
+import config
 
 logging.basicConfig(
     level=logging.INFO,

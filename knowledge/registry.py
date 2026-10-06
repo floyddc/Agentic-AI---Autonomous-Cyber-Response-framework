@@ -1,7 +1,7 @@
 import json
 import uuid
+import config
 from typing import Any, Dict, List, Optional
-from RAG import config
 from postgres.db import cursor as _cursor
 from postgres.db import transaction
 from RAG.knowledge_store import IncidentHistoryStore

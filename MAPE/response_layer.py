@@ -1,6 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional
-from RAG import config
+import config
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 

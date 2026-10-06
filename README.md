@@ -98,9 +98,11 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
 
 ## Eseguire il workflow MAPE-K
-Il comando seguente esegue `TriageAgent`, `RetrieveAgent`, `ActionPlannerAgent`, `ValidationAgent` e `ResponseLayer` nello stesso workflow:
+Inviare un alert JSON con `POST /alerts` (in PowerShell):
 
-  - `docker exec python-app python -m MAPE.orchestrator /app/knowledge/raw_data/edr_alerts/test_alert.json`
+  - `curl.exe -X POST http://localhost:8000/alerts -H "Content-Type: application/json" --data-binary "@knowledge/raw_data/edr_alerts/test_alert.json"`
+
+La risposta JSON contiene il report dell'orchestrazione. `_source` e `external_id` sono campi opzionali del file: vengono usati come metadati e non vengono inclusi nel payload dell'alert. La porta è pubblicata solo su localhost. Il vecchio comando `docker exec python-app python -m MAPE.orchestrator ...` resta utilizzabile per debug, ma avvia un processo separato e quindi ricarica i modelli.
 
 Nel JSON restituito verificare:
 
@@ -116,7 +118,7 @@ Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azion
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --tail <N>`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail 33`
 
   - `docker logs otel-collector --tail <N>`
 

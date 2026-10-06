@@ -3,7 +3,7 @@ import logging
 import sys
 import time
 from typing import Any, Dict
-from RAG import config
+import config
 from RAG.context_builder import build_context
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
