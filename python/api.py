@@ -1,26 +1,28 @@
 import json
 import logging
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Protocol
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 MAX_REQUEST_BYTES = 1_048_576
 
 
-class Orchestrator(Protocol):
-    def handle_alert(
+class IncidentStore(Protocol):
+    def create_incident(
         self,
-        *,
         source: str,
-        raw_payload: Dict[str, Any],
+        summary: str = "",
+        description: str = "",
+        severity: Optional[str] = None,
         external_id: Optional[str] = None,
-    ) -> Dict[str, Any]: ...
+        raw_payload: Optional[Dict[str, Any]] = None,
+    ) -> int: ...
+
+    def get_incident(self, incident_id: int) -> Optional[Dict[str, Any]]: ...
 
 
-def create_server(orchestrator: Orchestrator, host: str, port: int) -> ThreadingHTTPServer:
-    processing_lock = threading.Lock()
-
+def create_server(registry: IncidentStore, host: str, port: int) -> ThreadingHTTPServer:
     class AlertRequestHandler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, body: Dict[str, Any]) -> None:
             encoded = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
@@ -34,6 +36,39 @@ def create_server(orchestrator: Orchestrator, host: str, port: int) -> Threading
             if self.path == "/health":
                 self._send_json(200, {"status": "ok"})
                 return
+
+            path = urlsplit(self.path).path
+            parts = path.strip("/").split("/")
+            if len(parts) == 2 and parts[0] == "incidents":
+                try:
+                    incident_id = int(parts[1])
+                    if incident_id <= 0:
+                        raise ValueError
+                except ValueError:
+                    self._send_json(400, {"error": "Incident ID must be a positive integer"})
+                    return
+
+                try:
+                    incident = registry.get_incident(incident_id)
+                except Exception:
+                    logger.exception("Unable to retrieve incident %s", incident_id)
+                    self._send_json(500, {"error": "Unable to retrieve incident"})
+                    return
+
+                if incident is None:
+                    self._send_json(404, {"error": "Incident not found"})
+                    return
+
+                self._send_json(
+                    200,
+                    {
+                        "incident_id": incident_id,
+                        "status": incident["status"],
+                        "updated_at": incident.get("updated_at"),
+                    },
+                )
+                return
+
             self._send_json(404, {"error": "Not found"})
 
         def do_POST(self) -> None:
@@ -76,16 +111,24 @@ def create_server(orchestrator: Orchestrator, host: str, port: int) -> Threading
                 return
 
             try:
-                with processing_lock:
-                    report = orchestrator.handle_alert(
-                        source=source,
-                        raw_payload=payload,
-                        external_id=external_id,
-                    )
-                self._send_json(200, report)
+                incident_id = registry.create_incident(
+                    source=source,
+                    raw_payload=payload,
+                    external_id=external_id,
+                )
+                self.send_response(202)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Location", f"/incidents/{incident_id}")
+                body = json.dumps(
+                    {"incident_id": incident_id, "status": "new"},
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             except Exception:
-                logger.exception("Unexpected error while processing an alert")
-                self._send_json(500, {"error": "Alert processing failed"})
+                logger.exception("Unable to accept an alert")
+                self._send_json(500, {"error": "Alert could not be accepted"})
 
         def log_message(self, format: str, *args: Any) -> None:
             logger.info("Alert API %s - %s", self.address_string(), format % args)

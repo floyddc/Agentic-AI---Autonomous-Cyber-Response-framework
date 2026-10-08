@@ -21,7 +21,7 @@ INDICES_DIR = os.path.join(KNOWLEDGE_DIR, "indices")
 CACHE_DIR = os.environ.get("CACHE_DIR", "/root/.cache/huggingface")
 
 # PIPELINE & OLLAMA SETUP ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-WARMUP_ON = os.environ.get("WARMUP_ON", True)                                       # change it if you don't wanna warmup the pipeline
+WARMUP_ON = os.environ.get("WARMUP_ON", False)                                       # change it if you don't wanna warmup the pipeline
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
 API_HOST = os.environ.get("API_HOST", "0.0.0.0")
 API_PORT = int(os.environ.get("API_PORT", "8000"))

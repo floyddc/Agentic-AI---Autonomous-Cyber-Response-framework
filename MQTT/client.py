@@ -63,6 +63,8 @@ class MQTTClient:
         self._connected = threading.Event()
         self._stop_event = threading.Event()
         self._state_lock = threading.RLock()
+        self._publish_condition = threading.Condition()
+        self._publish_reasons: dict[int, Any] = {}
         self._connect_lock = threading.Lock()
         self._current_broker_index = 0
         self._connected_broker: Optional[tuple[str, int]] = None
@@ -163,7 +165,12 @@ class MQTTClient:
     ):
         logger.info("MQTT publish acknowledged mid=%s reason=%s", mid, reason_code)
 
-        if reason_code != 0:
+        reason_value = getattr(reason_code, "value", reason_code)
+        with self._publish_condition:
+            self._publish_reasons[mid] = reason_value
+            self._publish_condition.notify_all()
+
+        if reason_value != 0:
             logger.warning("MQTT publish failed: mid=%s reason=%s", mid, reason_code)
             return
 
@@ -233,7 +240,7 @@ class MQTTClient:
                 self._current_broker_index = index
 
             try:
-                logger.info("Connecting to MQTT broker %s:%s", host, port)
+                logger.info("🔗 Connecting to MQTT broker %s:%s", host, port)
                 self.client.connect(host, port, keepalive=self.keepalive)
 
                 if self._wait_until_connected(self.connect_timeout):
@@ -359,11 +366,27 @@ class MQTTClient:
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             raise RuntimeError(f"MQTT publish failed: rc={result.rc}")
 
+        deadline = time.monotonic() + timeout
         try:
             result.wait_for_publish(timeout=timeout)
 
         except RuntimeError as exc:
             raise RuntimeError(f"MQTT publish timed out: topic={topic}") from exc
+
+        with self._publish_condition:
+            while result.mid not in self._publish_reasons:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(
+                        f"MQTT publish acknowledgement timed out: topic={topic}"
+                    )
+                self._publish_condition.wait(timeout=remaining)
+            reason_code = self._publish_reasons.pop(result.mid)
+
+        if reason_code != 0:
+            raise RuntimeError(
+                f"MQTT publish rejected: topic={topic}, reason={reason_code}"
+            )
 
         logger.debug("MQTT publish completed topic=%s qos=%s mid=%s", topic, qos, result.mid)
 

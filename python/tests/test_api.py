@@ -6,19 +6,23 @@ from urllib.request import Request, urlopen
 from api import create_server
 
 
-class FakeOrchestrator:
+class FakeRegistry:
     def __init__(self):
-        self.args = None
+        self.created = None
+        self.incidents = {17: {"status": "new", "updated_at": None}}
 
-    def handle_alert(self, **kwargs):
-        self.args = kwargs
-        return {"incident_id": 17, "status": "responded"}
+    def create_incident(self, **kwargs):
+        self.created = kwargs
+        return 17
+
+    def get_incident(self, incident_id):
+        return self.incidents.get(incident_id)
 
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
-        self.orchestrator = FakeOrchestrator()
-        self.server = create_server(self.orchestrator, "127.0.0.1", 0)
+        self.registry = FakeRegistry()
+        self.server = create_server(self.registry, "127.0.0.1", 0)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.base_url = "http://127.0.0.1:{}".format(self.server.server_port)
@@ -43,7 +47,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status, 200)
             self.assertEqual(json.loads(response.read()), {"status": "ok"})
 
-    def test_post_alert_calls_persistent_orchestrator(self):
+    def test_post_alert_persists_incident_and_accepts_async_processing(self):
         payload = {
             "_source": "EDR",
             "external_id": "test-123",
@@ -52,10 +56,12 @@ class ApiTests(unittest.TestCase):
 
         with self.request("/alerts", method="POST", body=payload) as response:
             report = json.loads(response.read())
+            self.assertEqual(response.status, 202)
+            self.assertEqual(response.headers["Location"], "/incidents/17")
 
-        self.assertEqual(report, {"incident_id": 17, "status": "responded"})
+        self.assertEqual(report, {"incident_id": 17, "status": "new"})
         self.assertEqual(
-            self.orchestrator.args,
+            self.registry.created,
             {
                 "source": "EDR",
                 "raw_payload": {"host": "workstation-1"},
@@ -78,7 +84,20 @@ class ApiTests(unittest.TestCase):
             json.loads(error.exception.read()),
             {"error": "Alert body must be a JSON object"},
         )
-        self.assertIsNone(self.orchestrator.args)
+        self.assertIsNone(self.registry.created)
+
+    def test_get_incident_returns_current_status(self):
+        with self.request("/incidents/17") as response:
+            self.assertEqual(
+                json.loads(response.read()),
+                {"incident_id": 17, "status": "new", "updated_at": None},
+            )
+
+    def test_get_unknown_incident_returns_not_found(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request("/incidents/999")
+
+        self.assertEqual(error.exception.code, 404)
 
     def test_unknown_route_returns_not_found(self):
         with self.assertRaises(HTTPError) as error:

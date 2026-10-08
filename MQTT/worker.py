@@ -53,7 +53,7 @@ class Worker(ABC):
 
     # LIFECYCLE ----------------------------------------------------------------------------------------------------------------------------------------------------------     
     def start(self) -> None:
-        logger.info("Starting worker name=%s id=%s", self.worker_name, self.worker_id)
+        logger.info("▶️ Starting worker name=%s id=%s", self.worker_name, self.worker_id)
         self.mqtt.connect()
         self.mqtt.subscribe(self.subscription_topic, qos=self.qos, callback=self._on_message)
         self._worker_thread = threading.Thread(target=self._process_events, name=f"worker-{self.worker_name}", daemon=True)
@@ -169,7 +169,7 @@ class Worker(ABC):
         idempotency_key: Optional[str] = None,
     ) -> str:
 
-        logger.info("Worker=%s transition incident_id=%s -> status=%s", self.worker_name, incident_id, status)
+        logger.info("✅ Worker=%s transition incident_id=%s -> status=%s", self.worker_name, incident_id, status)
         return self.registry.transition(
             incident_id=incident_id,
             status=status,

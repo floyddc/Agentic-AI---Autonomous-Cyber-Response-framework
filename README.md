@@ -118,7 +118,7 @@ Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azion
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --tail 33`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail 12`
 
   - `docker logs otel-collector --tail <N>`
 

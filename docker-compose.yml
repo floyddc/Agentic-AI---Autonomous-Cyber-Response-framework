@@ -89,6 +89,8 @@ services:
       context: ./python
       dockerfile: Dockerfile
 
+    image: cyber-response-app:local
+
     container_name: python-app
 
     depends_on:
@@ -150,8 +152,53 @@ services:
 
     restart: unless-stopped
 
+  outbox-publisher:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+
+    container_name: outbox-publisher
+
+    image: cyber-response-app:local
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx-1:
+        condition: service_healthy
+      emqx-2:
+        condition: service_healthy
+      emqx-3:
+        condition: service_healthy
+
+    environment:
+      PYTHONPATH: /app:/app/postgres:/app/MQTT
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: incident_registry
+      POSTGRES_USER: cyberresponse
+      POSTGRES_PASSWORD: cyberresponse
+      MQTT_BROKERS: "emqx-1:1883,emqx-2:1883,emqx-3:1883"
+
+    volumes:
+      - ./python:/app
+      - ./postgres:/app/postgres
+      - ./MQTT:/app/MQTT
+
+    working_dir: /app
+
+    command: ["python", "-m", "MQTT.outbox_publisher"]
+
+    networks:
+      - default
+      - emqx-net
+
+    restart: unless-stopped
+
   emqx-1:
     image: emqx:5.8.8
+
+    container_name: emqx-1
 
     hostname: node1.emqx.local
 
@@ -189,6 +236,8 @@ services:
   emqx-2:
     image: emqx:5.8.8
 
+    container_name: emqx-2
+
     hostname: node2.emqx.local
 
     ports:
@@ -224,6 +273,8 @@ services:
 
   emqx-3:
     image: emqx:5.8.8
+
+    container_name: emqx-3
 
     hostname: node3.emqx.local
 

@@ -1,10 +1,9 @@
-import json
 import logging
 import signal
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from MQTT.client import MQTTClient
 from postgres.db import transaction
 import config
@@ -65,7 +64,17 @@ class OutboxPublisher:
                     """
                     SELECT event_id, incident_id, event_type, correlation_id, producer, topic, payload
                     FROM event_outbox
-                    WHERE published_at IS NULL AND attempts < 5
+                    WHERE published_at IS NULL
+                    AND (
+                        last_attempt_at IS NULL
+                        OR last_attempt_at <= now() - (
+                            LEAST(
+                                POWER(2::double precision, GREATEST(attempts - 1, 0)),
+                                30.0
+                            )
+                            * INTERVAL '1 second'
+                        )
+                    )
                     ORDER BY created_at ASC
                     LIMIT %s
                     FOR UPDATE SKIP LOCKED
@@ -113,3 +122,23 @@ class OutboxPublisher:
         if info is not None and hasattr(info, "wait_for_publish"):
             info.wait_for_publish(timeout=10)
         logger.debug("MQTT publish completed topic=%s", topic)
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    publisher = OutboxPublisher()
+
+    def handle_shutdown(signum, frame) -> None:
+        logger.info("Received signal %s; stopping outbox publisher", signum)
+        publisher.stop()
+
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
+    publisher.run()
+
+
+if __name__ == "__main__":
+    main()
