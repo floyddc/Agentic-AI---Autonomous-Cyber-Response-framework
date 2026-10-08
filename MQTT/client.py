@@ -26,6 +26,7 @@ class MQTTClient:
         connect_timeout: float = MQTT_CONNECT_TIMEOUT,
         reconnect_initial_delay: float = MQTT_RECONNECT_INITIAL_DELAY,
         reconnect_max_delay: float = MQTT_RECONNECT_MAX_DELAY,
+        manual_ack: bool = False,
     ):
         broker_config = brokers or os.getenv(
             "MQTT_BROKERS",
@@ -43,12 +44,15 @@ class MQTTClient:
         self.connect_timeout = connect_timeout
         self.reconnect_initial_delay = reconnect_initial_delay
         self.reconnect_max_delay = reconnect_max_delay
+        self.manual_ack = manual_ack
 
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=self.client_id,
             protocol=mqtt.MQTTv5,
         )
+        if self.manual_ack:
+            self.client.manual_ack_set(True)
 
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
@@ -199,9 +203,24 @@ class MQTTClient:
 
         try:
             callback(message)
+            if self.manual_ack:
+                result = client.ack(message.mid, message.qos)
+                if result != mqtt.MQTT_ERR_SUCCESS:
+                    logger.error(
+                        "Unable to acknowledge MQTT message topic=%s mid=%s rc=%s",
+                        message.topic,
+                        message.mid,
+                        result,
+                    )
+                    client.disconnect()
 
         except Exception:
-            logger.exception("MQTT message callback failed for topic=%s", message.topic)
+            logger.exception(
+                "MQTT message callback failed for topic=%s; message was not acknowledged",
+                message.topic,
+            )
+            if self.manual_ack:
+                client.disconnect()
 
     def _connect_to_broker(self, index: int) -> bool:
         host, port = self.brokers[index]

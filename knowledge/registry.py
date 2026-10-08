@@ -135,6 +135,7 @@ class IncidentRegistry:
         topic: Optional[str] = None,
         correlation_id: Optional[str] = None,
         audit_details: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
     ) -> str:
 
         if status not in ALLOWED_STATUSES:
@@ -142,6 +143,19 @@ class IncidentRegistry:
 
         correlation_id = correlation_id or str(uuid.uuid4())
         payload = payload or {}
+        if idempotency_key is not None and not idempotency_key.strip():
+            raise ValueError("idempotency_key cannot be empty")
+
+        if event_type is None:
+            event_type = STATUS_EVENT_MAP.get(status)
+        if topic is None and event_type is not None:
+            topic = event_type
+
+        idempotent_event_id = (
+            str(uuid.uuid5(uuid.NAMESPACE_URL, idempotency_key))
+            if idempotency_key is not None and event_type is not None and topic is not None
+            else None
+        )
 
         with logging_agent.track("incident_registry", "transition", incident_id=incident_id):
             with transaction(config.POSTGRES_OPERATIONAL_DB) as conn:
@@ -159,6 +173,14 @@ class IncidentRegistry:
                     row = cur.fetchone()
                     if row is None:
                         raise RuntimeError(f"Incident {incident_id} not found")
+
+                    if idempotent_event_id is not None:
+                        cur.execute(
+                            "SELECT 1 FROM event_outbox WHERE event_id = %s",
+                            (idempotent_event_id,),
+                        )
+                        if cur.fetchone() is not None:
+                            return correlation_id
 
                     previous_status = row[0]
                     cur.execute(
@@ -179,12 +201,6 @@ class IncidentRegistry:
                         (incident_id, producer, "phase_transition", json.dumps(details))
                     )
 
-                    if event_type is None:
-                        event_type = STATUS_EVENT_MAP.get(status)
-
-                    if topic is None and event_type is not None:
-                        topic = event_type
-
                     if event_type is None or topic is None:
                         return correlation_id
 
@@ -201,6 +217,7 @@ class IncidentRegistry:
                             "status": status,
                             **payload,
                         },
+                        event_id=idempotent_event_id,
                     )
 
             return correlation_id
@@ -215,6 +232,7 @@ class IncidentRegistry:
         producer: str,
         topic: str,
         payload: Dict[str, Any],
+        event_id: Optional[str] = None,
     ) -> str:
 
         event = Event.create(
@@ -223,6 +241,7 @@ class IncidentRegistry:
             payload=payload,
             producer=producer,
             correlation_id=correlation_id,
+            event_id=event_id,
         )
 
         cur.execute(
@@ -374,6 +393,56 @@ class IncidentRegistry:
             row = cur.fetchone()
             return row is not None
 
+    def claim_pending_event(self, event_type: str) -> Optional[Event]:
+        if not event_type:
+            raise ValueError("event_type cannot be empty")
+
+        with transaction(config.POSTGRES_OPERATIONAL_DB) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    WITH pending AS (
+                        SELECT id
+                        FROM event_inbox
+                        WHERE status = 'received'
+                          AND event_type = %s
+                        ORDER BY received_at ASC, id ASC
+                        LIMIT 1
+                        FOR UPDATE SKIP LOCKED
+                    )
+                    UPDATE event_inbox AS inbox
+                    SET status = 'processing',
+                        attempts = attempts + 1,
+                        processing_started_at = now(),
+                        last_error = NULL
+                    FROM pending
+                    WHERE inbox.id = pending.id
+                    RETURNING inbox.event_id,
+                              inbox.incident_id,
+                              inbox.event_type,
+                              inbox.correlation_id,
+                              inbox.producer,
+                              inbox.received_at,
+                              inbox.payload
+                    """,
+                    (event_type,),
+                )
+                row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return Event(
+            event_id=str(row[0]),
+            event_type=row[2],
+            incident_id=row[1],
+            correlation_id=str(row[3]),
+            producer=row[4],
+            timestamp=row[5].isoformat(),
+            schema_version=1,
+            payload=row[6],
+        )
+
     def get_pending_events(
         self,
         limit: int = 100,
@@ -407,26 +476,20 @@ class IncidentRegistry:
             )
             return cur.fetchall()
 
-    def mark_event_processing(self, event_id: str) -> None:
+
+    def heartbeat_event(self, event_id: str) -> bool:
         with transaction(config.POSTGRES_OPERATIONAL_DB) as conn:
-
             with conn.cursor() as cur:
-
                 cur.execute(
                     """
                     UPDATE event_inbox
-                    SET
-                        status = 'processing',
-                        attempts = attempts + 1,
-                        processing_started_at = now(),
-                        last_error = NULL
+                    SET processing_started_at = now()
                     WHERE event_id = %s
-                    AND status = 'received'
+                      AND status = 'processing'
                     """,
                     (event_id,),
                 )
-                if cur.rowcount == 0:
-                    raise RuntimeError(f"Event {event_id} not found or not in 'received' state")
+                return cur.rowcount == 1
 
     def mark_event_processed(self, event_id: str) -> None:
         with transaction(config.POSTGRES_OPERATIONAL_DB) as conn:

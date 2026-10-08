@@ -1,11 +1,9 @@
 import json
 import logging
-import signal
 import threading
 import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
-from queue import Queue, Empty
 import paho.mqtt.client as mqtt
 from MQTT.client import MQTTClient
 from MQTT.events import Event
@@ -23,17 +21,25 @@ class Worker(ABC):
         group: Optional[str] = None,
         client_id: Optional[str] = None,
         qos: int = 1,
-        registry: Optional[IncidentRegistry] = None
+        registry: Optional[IncidentRegistry] = None,
+        poll_interval: float = 0.5,
+        heartbeat_interval: float = 30.0,
     ):
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be greater than zero")
+        if heartbeat_interval <= 0:
+            raise ValueError("heartbeat_interval must be greater than zero")
+
         self.worker_name = worker_name
         self.input_topic = input_topic
         self.group = group
         self.qos = qos
+        self.poll_interval = poll_interval
+        self.heartbeat_interval = heartbeat_interval
         self.worker_id = (client_id or f"{worker_name}-{uuid.uuid4().hex[:8]}")
-        self.mqtt = MQTTClient(client_id=self.worker_id)
+        self.mqtt = MQTTClient(client_id=self.worker_id, manual_ack=True)
         self.registry = registry or IncidentRegistry()
         self._stop_event = threading.Event()
-        self._event_queue: Queue[Event] = Queue()
         self._worker_thread: Optional[threading.Thread] = None
 
 
@@ -99,30 +105,54 @@ class Worker(ABC):
             inserted = self.registry.receive_event(event)
             if not inserted:
                 logger.info("Duplicate event ignored event_id=%s", event.event_id)
-                return
-            self._event_queue.put(event)
 
         except Exception:
             logger.exception("Failed to persist event event_id=%s", event.event_id)
+            raise
 
     def _process_events(self) -> None:
         while not self._stop_event.is_set():
             try:
-                event = self._event_queue.get(timeout=1)
-            except Empty:
+                event = self.registry.claim_pending_event(event_type=self.input_topic)
+            except Exception:
+                logger.exception("Worker=%s failed to claim a pending event", self.worker_name)
+                self._stop_event.wait(self.poll_interval)
                 continue
 
+            if event is None:
+                self._stop_event.wait(self.poll_interval)
+                continue
+
+            heartbeat_stop = threading.Event()
+            heartbeat_thread = threading.Thread(
+                target=self._heartbeat_event,
+                args=(event.event_id, heartbeat_stop),
+                name=f"heartbeat-{self.worker_name}",
+                daemon=True,
+            )
+            heartbeat_thread.start()
             try:
-                self.registry.mark_event_processing(event.event_id)
                 self.handle_event(event)
                 self.registry.mark_event_processed(event.event_id)
 
             except Exception as exc:
-                logger.exception("Worker=%s failed processing event=%s", self.worker_name, event.event_id,)
-                self.registry.mark_event_failed(event.event_id, str(exc))
-
+                logger.exception("Worker=%s failed processing event=%s", self.worker_name, event.event_id)
+                try:
+                    self.registry.mark_event_failed(event.event_id, str(exc))
+                except Exception:
+                    logger.exception("Worker=%s failed to record processing failure event=%s", self.worker_name, event.event_id)
             finally:
-                self._event_queue.task_done()
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=self.heartbeat_interval + 1)
+
+    def _heartbeat_event(self, event_id: str, stop_event: threading.Event) -> None:
+        while not stop_event.wait(self.heartbeat_interval):
+            try:
+                if not self.registry.heartbeat_event(event_id):
+                    logger.warning("Worker=%s lost processing lease for event=%s", self.worker_name, event_id)
+                    return
+            except Exception:
+                logger.exception("Worker=%s failed to refresh processing lease for event=%s", self.worker_name, event_id)
 
     # BUSINESS LOGIC ----------------------------------------------------------------------------------------------------------------------------------------------------------     
     @abstractmethod
@@ -136,6 +166,7 @@ class Worker(ABC):
         status: str,
         payload: Optional[dict] = None,
         correlation_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> str:
 
         logger.info("Worker=%s transition incident_id=%s -> status=%s", self.worker_name, incident_id, status)
@@ -145,4 +176,5 @@ class Worker(ABC):
             producer=self.worker_name,
             payload=payload or {},
             correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
         )

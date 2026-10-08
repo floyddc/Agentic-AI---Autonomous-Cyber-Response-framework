@@ -23,10 +23,11 @@ class Event:
         payload: dict[str, Any],
         producer: str,
         correlation_id: str | None = None,
+        event_id: str | None = None,
     ) -> "Event":
 
         return cls(
-            event_id=str(uuid.uuid4()),
+            event_id=event_id or str(uuid.uuid4()),
             event_type=event_type,
             incident_id=incident_id,
             correlation_id=correlation_id or str(uuid.uuid4()),
