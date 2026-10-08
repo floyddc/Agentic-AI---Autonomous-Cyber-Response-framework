@@ -57,6 +57,7 @@ class MQTTClient:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_publish = self._on_publish
+        self.client.on_subscribe = self._on_subscribe
         self.client.on_message = self._on_message
 
         self._subscriptions: dict[str, tuple[int, Optional[MessageCallback]]] = {}
@@ -65,6 +66,8 @@ class MQTTClient:
         self._state_lock = threading.RLock()
         self._publish_condition = threading.Condition()
         self._publish_reasons: dict[int, Any] = {}
+        self._subscribe_condition = threading.Condition()
+        self._subscribe_reasons: dict[int, list[Any]] = {}
         self._connect_lock = threading.Lock()
         self._current_broker_index = 0
         self._connected_broker: Optional[tuple[str, int]] = None
@@ -175,6 +178,21 @@ class MQTTClient:
             return
 
         logger.debug("MQTT message published: mid=%s", mid)
+
+    def _on_subscribe(
+        self,
+        client,
+        userdata,
+        mid,
+        reason_code_list,
+        properties,
+    ):
+        reason_codes = list(reason_code_list)
+        with self._subscribe_condition:
+            self._subscribe_reasons[mid] = reason_codes
+            self._subscribe_condition.notify_all()
+
+        logger.info("MQTT subscription acknowledged mid=%s reason_codes=%s", mid, reason_codes)
 
     def _on_message(
         self,
@@ -412,19 +430,38 @@ class MQTTClient:
         if not self._connected.is_set():
             raise RuntimeError("MQTT client is not connected")
 
-        self._subscribe_topic(topic, qos)
+        self._subscribe_topic(topic, qos, wait_for_ack=True)
 
     def _subscribe_topic(
         self,
         topic: str,
         qos: int,
+        *,
+        wait_for_ack: bool = False,
     ) -> None:
         result, mid = self.client.subscribe(topic, qos=qos)
 
         if result != mqtt.MQTT_ERR_SUCCESS:
             raise RuntimeError(f"MQTT subscribe failed: "f"topic={topic}, rc={result}")
 
-        logger.info("Subscribed to MQTT topic=%s qos=%s mid=%s", topic, qos, mid,)
+        if wait_for_ack:
+            with self._subscribe_condition:
+                acknowledged = self._subscribe_condition.wait_for(
+                    lambda: mid in self._subscribe_reasons,
+                    timeout=self.connect_timeout,
+                )
+                reason_codes = self._subscribe_reasons.pop(mid, [])
+
+            if not acknowledged:
+                raise TimeoutError(f"Timed out waiting for MQTT SUBACK: topic={topic}, mid={mid}")
+
+            if not reason_codes or any(
+                getattr(reason_code, "value", reason_code) >= 128
+                for reason_code in reason_codes
+            ):
+                raise RuntimeError(f"MQTT subscription rejected: topic={topic}, reason_codes={reason_codes}")
+
+        logger.info("Subscribed to MQTT topic=%s qos=%s mid=%s", topic, qos, mid)
 
     def _restore_subscriptions(self) -> None:
         with self._state_lock:

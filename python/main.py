@@ -3,6 +3,7 @@ import signal
 import threading
 import time
 import requests
+from typing import Optional
 from api import create_server
 import config
 from knowledge.registry import IncidentRegistry
@@ -17,14 +18,21 @@ logger = logging.getLogger(__name__)
 _shutdown_event = threading.Event()
 _services_lock = threading.Lock()
 _running_services = set()
+WORKER_STARTUP_TIMEOUT_SECONDS = 120
 
 
 # BACKGROUND SERVICES ----------------------------------------------------------------------------------------------------------------------------------------------------------    
-def _run_resilient(name: str, factory) -> None:
+def _run_resilient(
+    name: str,
+    factory,
+    ready_event: Optional[threading.Event] = None,
+) -> None:
     delay = 1.0
     while not _shutdown_event.is_set():
         try:
             service = factory()
+            if ready_event is not None:
+                service.set_readiness_event(ready_event)
             with _services_lock:
                 _running_services.add(service)
             service.run()
@@ -34,13 +42,19 @@ def _run_resilient(name: str, factory) -> None:
             _shutdown_event.wait(delay)
             delay = min(delay * 2, 30)
         finally:
-            if "service" in locals():
+            if "service" in locals() and service is not None:
                 with _services_lock:
                     _running_services.discard(service)
+                try:
+                    service.stop()
+                except Exception:
+                    logger.exception("Failed to stop background service '%s'", name)
                 service = None
+            if ready_event is not None:
+                ready_event.clear()
 
 
-def start_services() -> list[threading.Thread]:
+def start_services() -> tuple[list[threading.Thread], dict[str, threading.Event]]:
     services = [
         ("maintenance-daemon", lambda: MaintenanceDaemon(interval_seconds=30, stale_timeout_seconds=120)),
         (
@@ -62,13 +76,42 @@ def start_services() -> list[threading.Thread]:
             lambda: _create_worker("MAPE.workers.validation_worker", "ValidationWorker"),
         ),
     ]
+    worker_readiness = {
+        name: threading.Event()
+        for name, _ in services
+        if name.endswith("-worker")
+    }
     threads = []
     for name, factory in services:
-        thread = threading.Thread(target=_run_resilient, args=(name, factory), name=name, daemon=True)
+        thread = threading.Thread(
+            target=_run_resilient,
+            args=(name, factory, worker_readiness.get(name)),
+            name=name,
+            daemon=True,
+        )
         thread.start()
         threads.append(thread)
     logger.info("Background services started: %s", ", ".join(name for name, _ in services))
-    return threads
+    return threads, worker_readiness
+
+
+def wait_for_workers(worker_readiness: dict[str, threading.Event]) -> None:
+    deadline = time.monotonic() + WORKER_STARTUP_TIMEOUT_SECONDS
+    while True:
+        pending = [
+            name for name, ready_event in worker_readiness.items()
+            if not ready_event.is_set()
+        ]
+        if not pending:
+            logger.info("All workers are connected and subscribed")
+            return
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            stop_background_services()
+            raise TimeoutError(f"Workers did not become ready within {WORKER_STARTUP_TIMEOUT_SECONDS}s: {', '.join(pending)}")
+        if _shutdown_event.wait(timeout=min(remaining, 0.1)):
+            raise RuntimeError("Shutdown requested while waiting for worker readiness")
 
 
 def _create_worker(module_name: str, class_name: str):
@@ -155,7 +198,8 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 print("▶️" * 60)
 print("                    SERVICES AND WORKERS START")
 print("▶️" * 60)
-start_services()
+service_threads, worker_readiness = start_services()
+wait_for_workers(worker_readiness)
 
 print("\n")
 print("⏳" * 60)

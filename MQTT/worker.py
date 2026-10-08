@@ -41,7 +41,10 @@ class Worker(ABC):
         self.registry = registry or IncidentRegistry()
         self._stop_event = threading.Event()
         self._worker_thread: Optional[threading.Thread] = None
+        self._ready_event = threading.Event()
 
+    def set_readiness_event(self, ready_event: threading.Event) -> None:
+        self._ready_event = ready_event
 
     # MQTT TOPIC ----------------------------------------------------------------------------------------------------------------------------------------------------------     
     @property
@@ -58,7 +61,8 @@ class Worker(ABC):
         self.mqtt.subscribe(self.subscription_topic, qos=self.qos, callback=self._on_message)
         self._worker_thread = threading.Thread(target=self._process_events, name=f"worker-{self.worker_name}", daemon=True)
         self._worker_thread.start()
-        logger.info("Worker started name=%s topic=%s", self.worker_name, self.subscription_topic)
+        self._ready_event.set()
+        logger.info("Worker ready name=%s topic=%s", self.worker_name, self.subscription_topic)
 
     def run(self) -> None:
         self.start()
@@ -79,6 +83,7 @@ class Worker(ABC):
             return
 
         logger.info("Stopping worker name=%s id=%s", self.worker_name, self.worker_id)
+        self._ready_event.clear()
         self._stop_event.set()
 
         if self._worker_thread is not None:

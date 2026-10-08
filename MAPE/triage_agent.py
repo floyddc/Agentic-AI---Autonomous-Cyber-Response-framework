@@ -44,7 +44,14 @@ class TriageAgent:
                     ),
                 },
             ]
-            response = self.client.chat(model=self.model, messages=messages, format="json", keep_alive=-1)
+            response = self.client.chat(
+                model=self.model,
+                messages=messages,
+                format="json",
+                think=False,
+                options={"temperature": 0},
+                keep_alive=-1,
+            )
             content = response["message"]["content"]
             data = json.loads(content)
             if data.get("severity") not in config.VALID_SEVERITIES:

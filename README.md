@@ -41,6 +41,7 @@
 **2. Avvio container:** `docker compose up`
   
   - Lo script all'avvio dovrebbe scaricare subito l'LLM (ed effettuarne il warm-up) e il modello di embeddings.
+  - `CONTAINER READY` viene stampato dopo che tutti e quattro i worker hanno completato la connessione MQTT e ricevuto la conferma (`SUBACK`) della sottoscrizione. Se non diventano pronti entro 120 secondi, il processo termina con errore.
 
 **3. Check:**
   - Modelli: `docker exec ollama ollama list`
