@@ -1,4 +1,26 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+
+    container_name: ollama
+
+    ports:
+      - "11434:11434"
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    volumes:
+      - ollama_data:/root/.ollama
+
+    restart: unless-stopped
+
+
   postgres:
     image: postgres:15
 
@@ -104,9 +126,11 @@ services:
         condition: service_healthy
       emqx-3:
         condition: service_healthy
+      ollama:
+        condition: service_started
 
     environment:
-      OLLAMA_HOST: http://host.docker.internal:11434  
+      OLLAMA_HOST: http://ollama:11434  
       EMBEDDING_MODEL: intfloat/multilingual-e5-small
       PLAN_MODEL: qwen3:4b-instruct
       TRIAGE_MODEL: qwen3:0.6b
@@ -128,7 +152,7 @@ services:
       MQTT_BROKERS: "emqx-1:1883,emqx-2:1883,emqx-3:1883"
 
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
 
     volumes:
       - hf_cache:/root/.cache/huggingface
