@@ -62,7 +62,7 @@ class Worker(ABC):
         self._worker_thread = threading.Thread(target=self._process_events, name=f"worker-{self.worker_name}", daemon=True)
         self._worker_thread.start()
         self._ready_event.set()
-        logger.info("Worker ready name=%s topic=%s", self.worker_name, self.subscription_topic)
+        logger.info("✅ Worker ready name=%s topic=%s", self.worker_name, self.subscription_topic)
 
     def run(self) -> None:
         self.start()

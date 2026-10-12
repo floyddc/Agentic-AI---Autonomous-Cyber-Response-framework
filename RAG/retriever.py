@@ -1,8 +1,10 @@
+import re
 import time
 from typing import Any, Dict, List, Optional
 import config
 from .embeddings import embed_query
 from .reranker import rerank
+from .text_cleaner import clean_retrieval_text
 from .vector_store import get_collection
 
 def retrieve(query: str, top_k: int = config.TOP_K, metrics: Optional[Dict[str, Any]] = None) -> List[dict]:
@@ -45,7 +47,9 @@ def retrieve(query: str, top_k: int = config.TOP_K, metrics: Optional[Dict[str, 
     start = time.perf_counter()
     hits = []
     for doc, meta, dist in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
-        hits.append({"text": doc, "metadata": meta, "distance": dist})
+        cleaned_doc = clean_retrieval_text(doc)
+        if cleaned_doc:
+            hits.append({"text": cleaned_doc, "metadata": meta, "distance": dist})
     hits_ms = (time.perf_counter() - start) * 1000
 
     # reranking
@@ -75,8 +79,12 @@ def format_context(hits: List[dict]) -> str:
     if not hits:
         return "No relevant context found in the knowledge base."
 
-    parts = []
-    for i, hit in enumerate(hits, start=1):
-        source = hit["metadata"].get("source", "unknown")
-        parts.append(f"[{i}] (source: {source})\n{hit['text']}")
-    return "\n\n".join(parts)
+    context_parts = []
+    seen = set()
+    for hit in hits:
+        text = clean_retrieval_text(hit["text"])
+        if text and text not in seen:
+            context_parts.append(text)
+            seen.add(text)
+
+    return "\n\n".join(context_parts) or "No relevant context found in the knowledge base."

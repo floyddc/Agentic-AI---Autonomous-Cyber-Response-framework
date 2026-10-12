@@ -78,3 +78,38 @@ class IncidentHistoryStore:
         with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
             cur.execute("SELECT * FROM incident_history ORDER BY created_at DESC LIMIT %s", (limit,))
             return cur.fetchall()
+
+
+class IndexStateStore:
+    
+    def get_cursor(self, source: str) -> int:
+        with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
+            cur.execute(
+                """
+                INSERT INTO index_cursors (source, last_id)
+                VALUES (%s, 0)
+                ON CONFLICT (source) DO NOTHING
+                """,
+                (source,),
+            )
+            cur.execute(
+                "SELECT last_id FROM index_cursors WHERE source = %s",
+                (source,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError(f"Unable to load RAG index cursor for {source}")
+            return row["last_id"]
+
+    def advance_cursor(self, source: str, last_id: int) -> None:
+        with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
+            cur.execute(
+                """
+                INSERT INTO index_cursors (source, last_id)
+                VALUES (%s, %s)
+                ON CONFLICT (source) DO UPDATE
+                SET last_id = GREATEST(index_cursors.last_id, EXCLUDED.last_id),
+                    updated_at = now()
+                """,
+                (source, last_id),
+            )

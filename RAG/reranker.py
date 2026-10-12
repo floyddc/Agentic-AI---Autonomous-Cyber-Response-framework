@@ -1,13 +1,13 @@
 import os
 from typing import List
-from sentence_transformers import CrossEncoder
 import config
 
 _model = None
 
-def _get_model() -> CrossEncoder:
+def _get_model():
     global _model
     if _model is None:
+        from sentence_transformers import CrossEncoder
         _model = CrossEncoder(config.RERANKER_MODEL, device="cpu", cache_folder=config.CACHE_DIR)
     return _model
 

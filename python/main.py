@@ -54,9 +54,8 @@ def _run_resilient(
                 ready_event.clear()
 
 
-def start_services() -> tuple[list[threading.Thread], dict[str, threading.Event]]:
-    services = [
-        ("maintenance-daemon", lambda: MaintenanceDaemon(interval_seconds=30, stale_timeout_seconds=120)),
+def start_workers() -> tuple[list[threading.Thread], dict[str, threading.Event]]:
+    workers = [
         (
             "retrieve-worker",
             lambda: _create_worker("MAPE.workers.retrieve_worker", "RetrieveWorker"),
@@ -78,11 +77,10 @@ def start_services() -> tuple[list[threading.Thread], dict[str, threading.Event]
     ]
     worker_readiness = {
         name: threading.Event()
-        for name, _ in services
-        if name.endswith("-worker")
+        for name, _ in workers
     }
     threads = []
-    for name, factory in services:
+    for name, factory in workers:
         thread = threading.Thread(
             target=_run_resilient,
             args=(name, factory, worker_readiness.get(name)),
@@ -91,8 +89,29 @@ def start_services() -> tuple[list[threading.Thread], dict[str, threading.Event]
         )
         thread.start()
         threads.append(thread)
-    logger.info("Background services started: %s", ", ".join(name for name, _ in services))
+    logger.info("Workers started: %s", ", ".join(name for name, _ in workers))
     return threads, worker_readiness
+
+
+def start_recovery_daemon(
+    recovery_start_event: threading.Event,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=_run_resilient,
+        args=(
+            "maintenance-daemon",
+            lambda: MaintenanceDaemon(
+                interval_seconds=30,
+                stale_timeout_seconds=120,
+                recovery_start_event=recovery_start_event,
+            ),
+        ),
+        name="maintenance-daemon",
+        daemon=True,
+    )
+    thread.start()
+    logger.info("Recovery daemon started; waiting for pipeline warm-up before recovery")
+    return thread
 
 
 def wait_for_workers(worker_readiness: dict[str, threading.Event]) -> None:
@@ -198,8 +217,10 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 print("▶️" * 60)
 print("                    SERVICES AND WORKERS START")
 print("▶️" * 60)
-service_threads, worker_readiness = start_services()
+worker_threads, worker_readiness = start_workers()
 wait_for_workers(worker_readiness)
+recovery_start_event = threading.Event()
+recovery_thread = start_recovery_daemon(recovery_start_event)
 
 print("\n")
 print("⏳" * 60)
@@ -222,16 +243,18 @@ print("✅" * 60)
 logger.info("Alert API listening on %s:%s", config.API_HOST, config.API_PORT)
 print("✅" * 60)
 
-
-if(config.WARMUP_ON):
-    print("\n")
-    print("⏳" * 60)
-    print("                    MODEL WARM-UP")
-    print("⏳" * 60)
-    pipeline_warmup_ms = warmup_pipeline()
-else:
-    print("\n")
-    print("                    WARM-UP OFF")
+try:
+    if config.WARMUP_ON:
+        print("\n")
+        print("⏳" * 60)
+        print("                    MODEL WARM-UP")
+        print("⏳" * 60)
+        pipeline_warmup_ms = warmup_pipeline()
+    else:
+        print("\n")
+        print("                    WARM-UP OFF")
+finally:
+    recovery_start_event.set()
 
     
 print("✅" * 60)
