@@ -103,7 +103,7 @@ Inviare un alert JSON con `POST /alerts` (in PowerShell):
 
   - `curl.exe -X POST http://localhost:8000/alerts -H "Content-Type: application/json" --data-binary "@knowledge/raw_data/edr_alerts/test_alert.json"`
 
-La risposta JSON contiene il report dell'orchestrazione. `_source` e `external_id` sono campi opzionali del file: vengono usati come metadati e non vengono inclusi nel payload dell'alert. La porta è pubblicata solo su localhost. Il vecchio comando `docker exec python-app python -m MAPE.orchestrator ...` resta utilizzabile per debug, ma avvia un processo separato e quindi ricarica i modelli.
+La risposta JSON contiene il report dell'orchestrazione. `_source` e `external_id` sono campi opzionali del file: vengono usati come metadati e non vengono inclusi nel payload dell'alert. La porta è pubblicata solo su localhost.
 
 Nel JSON restituito verificare:
 
@@ -135,7 +135,7 @@ Sostituire `<INCIDENT_ID>` con l'ID restituito dal comando precedente:
 
   - `docker exec postgres psql -U cyberresponse -d incident_registry -c "SELECT agent, action, details, created_at FROM audit_log WHERE incident_id = <INCIDENT_ID> ORDER BY created_at;"`
 
-La seconda query deve mostrare almeno le azioni di `orchestrator`, `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
+La seconda query deve mostrare almeno le azioni di `triage_agent`, `retrieve_agent`, `action_planner_agent`, `validation_agent` e `response_layer`.
 
 
 ## MQTT Broker Cluster

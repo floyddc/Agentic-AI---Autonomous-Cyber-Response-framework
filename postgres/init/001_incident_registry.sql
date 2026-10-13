@@ -52,7 +52,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
     incident_id INTEGER REFERENCES incidents (id) ON DELETE SET NULL,
     agent TEXT NOT NULL,
         -- router_agent
-        -- orchestrator
         -- triage_agent
         -- retrieve_agent
         -- action_planner_agent
