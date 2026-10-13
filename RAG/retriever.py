@@ -1,4 +1,3 @@
-import re
 import time
 from typing import Any, Dict, List, Optional
 import config

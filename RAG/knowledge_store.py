@@ -39,6 +39,14 @@ class KnowledgeBaseStore:
                 cur.execute("SELECT * FROM kb_documents ORDER BY category, source_path")
             return cur.fetchall()
 
+    def list_documents_after(self, after_id: int) -> List[Dict[str, Any]]:
+        with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
+            cur.execute(
+                "SELECT * FROM kb_documents WHERE id > %s ORDER BY id",
+                (after_id,),
+            )
+            return cur.fetchall()
+
 
 class IncidentHistoryStore:
 
@@ -77,6 +85,14 @@ class IncidentHistoryStore:
     def list_history(self, limit: int = 500) -> List[Dict[str, Any]]:
         with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
             cur.execute("SELECT * FROM incident_history ORDER BY created_at DESC LIMIT %s", (limit,))
+            return cur.fetchall()
+
+    def list_history_after(self, after_id: int) -> List[Dict[str, Any]]:
+        with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
+            cur.execute(
+                "SELECT * FROM incident_history WHERE id > %s ORDER BY id",
+                (after_id,),
+            )
             return cur.fetchall()
 
 
