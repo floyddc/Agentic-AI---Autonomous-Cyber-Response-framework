@@ -26,9 +26,8 @@ def rerank(query: str, hits: List[dict], top_k: int) -> List[dict]:
     return ranked[:top_k]
 
 def warmup() -> None:
-    model = _get_model()
 
-    model.predict([
+    _get_model.predict([
         (
             "warm-up query",
             "warm-up document for CrossEncoder initialization"

@@ -1,7 +1,7 @@
 import re
 
 _REFERENCE_SECTION = re.compile(
-    r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:references|bibliography|works cited|literature cited)\s*:?\s*$"
+    r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:references|bibliography|works cited|literature cited|fonte)\s*:?\s*$"
 )
 _REFERENCE_ENTRY = re.compile(r"(?m)^\s{0,3}\[[^\]]+\]:\s*\S.*$")
 _MITRE_REFERENCE_FOOTER = re.compile(

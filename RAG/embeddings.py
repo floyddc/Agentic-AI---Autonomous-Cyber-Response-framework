@@ -31,7 +31,7 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
         _prepare_document(text)
         for text in texts
     ]
-    embeddings = _get_model.encode(
+    embeddings = _get_model().encode(
         prepared,
         normalize_embeddings=True,
         convert_to_numpy=True,
@@ -43,8 +43,7 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
 def embed_query(text: str) -> List[float]:
 
     query = _prepare_query(text)
-    model = _get_model()
-    embedding = model.encode(
+    embedding = _get_model().encode(
         query,
         normalize_embeddings=True,
         convert_to_numpy=True,
