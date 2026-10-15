@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 
     id SERIAL PRIMARY KEY,
     source TEXT NOT NULL, -- EDR / XDR / SIEM / manual / etc.
+    customer_id INTEGER,
     external_id TEXT, -- ID dell'alert nel sistema sorgente
     summary TEXT,
     description TEXT,

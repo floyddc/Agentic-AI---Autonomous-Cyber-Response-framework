@@ -57,6 +57,7 @@
 {
   "_source": "EDR",
   "external_id": "test-edr-001",
+  "alert_customer_id": 1,
   "host": "workstation-042",
   "user": "alice",
   "alert": "Suspicious PowerShell execution with encoded command",
@@ -103,7 +104,7 @@ Inviare un alert JSON con `POST /alerts` (in PowerShell):
 
   - `curl.exe -X POST http://localhost:8000/alerts -H "Content-Type: application/json" --data-binary "@knowledge/raw_data/edr_alerts/test_alert.json"`
 
-La risposta JSON contiene il report dell'orchestrazione. `_source` e `external_id` sono campi opzionali del file: vengono usati come metadati e non vengono inclusi nel payload dell'alert. La porta è pubblicata solo su localhost.
+La risposta JSON contiene il report dell'orchestrazione. `alert_customer_id` è obbligatorio, deve essere un intero positivo e identifica il tenant; `_source` ed `external_id` sono opzionali e vengono usati come metadati, non inclusi nel payload dell'alert. Usare un identificativo assegnato dal sistema sorgente attendibile: il campo nel JSON, da solo, non autentica il cliente. La porta è pubblicata solo su localhost.
 
 Nel JSON restituito verificare:
 

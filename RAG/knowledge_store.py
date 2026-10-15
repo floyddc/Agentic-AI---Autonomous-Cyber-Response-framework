@@ -53,6 +53,7 @@ class IncidentHistoryStore:
     def add(
         self,
         incident_id: Optional[int],
+        customer_id: int,
         source: str = "",
         summary: str = "",
         description: str = "",
@@ -61,17 +62,20 @@ class IncidentHistoryStore:
         lessons_learned: str = "",
         raw_payload: Optional[Dict[str, Any]] = None,
     ) -> int:
+        if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+            raise ValueError("customer_id must be a positive integer")
         with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
             cur.execute(
                 """
                 INSERT INTO incident_history
-                    (incident_id, source, summary, description, severity, resolution, lessons_learned, raw_payload)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (incident_id, source, metadata, summary, description, severity, resolution, lessons_learned, raw_payload)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
                     incident_id,
                     source,
+                    json.dumps({"customer": customer_id}),
                     summary,
                     description,
                     severity,
@@ -128,4 +132,16 @@ class IndexStateStore:
                     updated_at = now()
                 """,
                 (source, last_id),
+            )
+
+    def reset_cursor(self, source: str) -> None:
+        with cursor(config.POSTGRES_KNOWLEDGE_DB) as cur:
+            cur.execute(
+                """
+                INSERT INTO index_cursors (source, last_id)
+                VALUES (%s, 0)
+                ON CONFLICT (source) DO UPDATE
+                SET last_id = 0, updated_at = now()
+                """,
+                (source,),
             )

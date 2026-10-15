@@ -14,15 +14,20 @@ class SourceDocument:
 
 
 def _knowledge_documents(rows: List[Dict[str, Any]]) -> List[SourceDocument]:
-    return [
-        SourceDocument(
-            path=row["source_path"],
-            category=row["category"],
-            content=row["content"],
-            metadata=row.get("metadata") or {},
+    documents = []
+    for row in rows:
+        metadata = row.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Knowledge document {row['source_path']} has invalid metadata")
+        documents.append(
+            SourceDocument(
+                path=row["source_path"],
+                category=row["category"],
+                content=row["content"],
+                metadata={**metadata, "scope": "global"},
+            )
         )
-        for row in rows
-    ]
+    return documents
 
 
 def _history_documents(rows: List[Dict[str, Any]]) -> List[SourceDocument]:
@@ -30,7 +35,7 @@ def _history_documents(rows: List[Dict[str, Any]]) -> List[SourceDocument]:
     for row in rows:
         metadata = row.get("metadata") or {}
         customer = metadata.get("customer") if isinstance(metadata, dict) else None
-        if not isinstance(customer, str) or not customer.strip():
+        if isinstance(customer, bool) or not isinstance(customer, int) or customer <= 0:
             continue
 
         parts = [f"summary: {row['summary']}", f"description: {row['description']}"]
@@ -40,7 +45,14 @@ def _history_documents(rows: List[Dict[str, Any]]) -> List[SourceDocument]:
             parts.append(f"lessons_learned: {row['lessons_learned']}")
         content = "\n".join(p for p in parts if p.strip())
         if content:
-            documents.append(SourceDocument(path=f"incident_history::{row['id']}", category="incident_history", content=content, metadata=metadata))
+            documents.append(
+                SourceDocument(
+                    path=f"incident_history::{row['id']}",
+                    category="incident_history",
+                    content=content,
+                    metadata={**metadata, "customer": customer, "scope": "customer"},
+                )
+            )
     return documents
 
 

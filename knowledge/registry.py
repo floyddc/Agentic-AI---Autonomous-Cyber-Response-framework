@@ -65,12 +65,15 @@ class IncidentRegistry:
     def create_incident(
         self,
         source: str,
+        customer_id: int,
         summary: str = "",
         description: str = "",
         severity: Optional[str] = None,
         external_id: Optional[str] = None,
         raw_payload: Optional[Dict[str, Any]] = None,
     ) -> int:
+        if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+            raise ValueError("customer_id must be a positive integer")
 
         with logging_agent.track("incident_registry", "create_incident"):
             with transaction(config.POSTGRES_OPERATIONAL_DB) as conn:
@@ -78,11 +81,11 @@ class IncidentRegistry:
 
                     cur.execute(
                         """
-                        INSERT INTO incidents (source, external_id, summary, description, severity, raw_payload)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO incidents (source, customer_id, external_id, summary, description, severity, raw_payload)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
-                        (source, external_id, summary, description, severity, json.dumps(raw_payload or {}))
+                        (source, customer_id, external_id, summary, description, severity, json.dumps(raw_payload or {}))
                     )
 
                     row = cur.fetchone()
@@ -101,6 +104,7 @@ class IncidentRegistry:
                         topic=topics.INCIDENT_CREATED,
                         payload={
                             "source": source,
+                            "customer_id": customer_id,
                             "external_id": external_id,
                             "summary": summary,
                             "description": description,
@@ -592,6 +596,10 @@ class IncidentRegistry:
             if incident is None:
                 raise RuntimeError(f"Incident {incident_id} not found")
 
+            customer_id = incident.get("customer_id")
+            if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+                raise RuntimeError(f"Incident {incident_id} has no customer_id; refusing to add it to shared incident history")
+
             self.update_status(incident_id, STATUS_CLOSED)
 
             self.log_action(
@@ -606,6 +614,7 @@ class IncidentRegistry:
 
             self.history_store.add(
                 incident_id=incident_id,
+                customer_id=customer_id,
                 source=incident.get("source", ""),
                 summary=incident.get("summary", ""),
                 description=incident.get("description", ""),

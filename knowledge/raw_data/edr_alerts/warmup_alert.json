@@ -1,6 +1,7 @@
 {
   "_source": "EDR",
   "external_id": "test-edr-001",
+  "alert_customer_id": 1,
   "host": "workstation-042",
   "user": "alice",
   "alert": "Suspicious PowerShell execution with encoded command",

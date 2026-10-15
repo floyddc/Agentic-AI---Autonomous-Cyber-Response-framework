@@ -9,6 +9,10 @@ _MITRE_REFERENCE_FOOTER = re.compile(
 )
 _HTML_INLINE_TAG = re.compile(r"</?(?:code|b|i|em|strong|u|span|pre)\s*>", re.IGNORECASE)
 _SOURCE_CITATION = re.compile(r"\(\s*Citation:\s*[^)]*\)", re.IGNORECASE)
+_HUGGINGFACE_MITRE_CITATION = re.compile(
+    r"\s*\*?Fonte:\s*HuggingFace dataset\s+`?sarahwei/cyber_MITRE_attack_tactics-and-techniques`?\.\*?",
+    re.IGNORECASE,
+)
 _NUMERIC_CITATION = re.compile(
     r"\[\^?\d+(?:\s*[-–]\s*\^?\d+)?(?:\s*[,;]\s*\^?\d+(?:\s*[-–]\s*\^?\d+)?)*\]"
 )
@@ -25,6 +29,7 @@ def clean_retrieval_text(text: str) -> str:
     text = _REFERENCE_ENTRY.sub("", text)
     text = _MITRE_REFERENCE_FOOTER.sub("", text)
     text = _SOURCE_CITATION.sub("", text)
+    text = _HUGGINGFACE_MITRE_CITATION.sub("", text)
     text = _HTML_INLINE_TAG.sub("", text)
     text = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", text)
     text = re.sub(r"\[([^\]]+)\]\((?:[^()]|\([^()]*\))*\)", r"\1", text)

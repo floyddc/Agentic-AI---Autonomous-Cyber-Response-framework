@@ -51,6 +51,7 @@ class ApiTests(unittest.TestCase):
         payload = {
             "_source": "EDR",
             "external_id": "test-123",
+            "alert_customer_id": 1,
             "host": "workstation-1",
         }
 
@@ -64,10 +65,37 @@ class ApiTests(unittest.TestCase):
             self.registry.created,
             {
                 "source": "EDR",
+                "customer_id": 1,
                 "raw_payload": {"host": "workstation-1"},
                 "external_id": "test-123",
             },
         )
+
+    def test_post_alert_requires_positive_integer_alert_customer_id(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request("/alerts", method="POST", body={"host": "workstation-1"})
+
+        self.assertEqual(error.exception.code, 400)
+        self.assertEqual(
+            json.loads(error.exception.read()),
+            {"error": "'alert_customer_id' must be a positive integer"},
+        )
+        self.assertIsNone(self.registry.created)
+
+    def test_post_alert_rejects_string_alert_customer_id(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request(
+                "/alerts",
+                method="POST",
+                body={"alert_customer_id": "1", "host": "workstation-1"},
+            )
+
+        self.assertEqual(error.exception.code, 400)
+        self.assertEqual(
+            json.loads(error.exception.read()),
+            {"error": "'alert_customer_id' must be a positive integer"},
+        )
+        self.assertIsNone(self.registry.created)
 
     def test_rejects_non_object_json(self):
         request = Request(

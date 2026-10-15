@@ -12,6 +12,7 @@ class IncidentStore(Protocol):
     def create_incident(
         self,
         source: str,
+        customer_id: int,
         summary: str = "",
         description: str = "",
         severity: Optional[str] = None,
@@ -110,9 +111,15 @@ def create_server(registry: IncidentStore, host: str, port: int) -> ThreadingHTT
                 self._send_json(400, {"error": "'external_id' must be a string"})
                 return
 
+            customer_id = payload.pop("alert_customer_id", None)
+            if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+                self._send_json(400, {"error": "'alert_customer_id' must be a positive integer"})
+                return
+
             try:
                 incident_id = registry.create_incident(
                     source=source,
+                    customer_id=customer_id,
                     raw_payload=payload,
                     external_id=external_id,
                 )

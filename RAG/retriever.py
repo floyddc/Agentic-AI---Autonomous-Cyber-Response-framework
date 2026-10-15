@@ -6,7 +6,14 @@ from .reranker import rerank
 from .text_cleaner import clean_retrieval_text
 from .vector_store import get_collection
 
-def retrieve(query: str, top_k: int = config.TOP_K, metrics: Optional[Dict[str, Any]] = None) -> List[dict]:
+def retrieve(
+    query: str,
+    customer_id: int,
+    top_k: int = config.TOP_K,
+    metrics: Optional[Dict[str, Any]] = None,
+) -> List[dict]:
+    if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+        raise ValueError("customer_id must be a positive integer for tenant-scoped retrieval")
 
     total_start = time.perf_counter()
 
@@ -39,7 +46,11 @@ def retrieve(query: str, top_k: int = config.TOP_K, metrics: Optional[Dict[str, 
 
     # ChromaDB vector search
     start = time.perf_counter()
-    results = collection.query(query_embeddings=[query_embedding], n_results=candidate_k)
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=candidate_k,
+        where={"$or": [{"scope": "global"}, {"customer": customer_id}]},
+    )
     search_ms = (time.perf_counter() - start) * 1000
 
     # build hits

@@ -1,9 +1,10 @@
 import json
 import logging
-import sys
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+import argparse
 import config
+import logging as _logging
 from RAG.context_builder import build_context
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
@@ -82,14 +83,28 @@ class RetrieveAgent:
         return json.dumps(incident, ensure_ascii=False, default=str)
 
 
-    def retrieve(self, incident_or_query: Any, incident_id: int = None) -> Dict[str, Any]:
+    def retrieve(
+        self,
+        incident_or_query: Any,
+        incident_id: int = None,
+        customer_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
 
         q = self._incident_to_query(incident_or_query)
+        if isinstance(incident_or_query, dict):
+            incident_customer_id = incident_or_query.get("customer_id")
+            if customer_id is not None and customer_id != incident_customer_id:
+                raise ValueError("customer_id does not match the incident tenant")
+            customer_id = incident_customer_id
+
         start = time.perf_counter()
         retrieval_metrics = {}
+        context = ""
 
         try:
-            context = build_context(q, top_k=self.top_k, retrieval_metrics=retrieval_metrics)
+            if isinstance(customer_id, bool) or not isinstance(customer_id, int) or customer_id <= 0:
+                raise ValueError("customer_id must be a positive integer for tenant-scoped retrieval")
+            context = build_context(q, customer_id=customer_id, top_k=self.top_k, retrieval_metrics=retrieval_metrics,)
             total_duration_ms = (time.perf_counter() - start) * 1000
 
             try:
@@ -103,7 +118,7 @@ class RetrieveAgent:
                 self.logger.exception("Failed to log retrieve_agent action to the incident registry")
 
             logging_agent.record(
-                "retrieve_agent", "retrieve", status="success", duration_ms=total_duration_ms, incident_id=incident_id,
+                "retrieve_agent", "retrieve", status="error", duration_ms=total_duration_ms, incident_id=incident_id,
                 details={
                     "collection_ms": retrieval_metrics.get("collection_ms", 0.0),
                     "embedding_ms": retrieval_metrics.get("embedding_ms", 0.0),
@@ -141,16 +156,16 @@ class RetrieveAgent:
 
 
 if __name__ == "__main__":
-    import logging as _logging
 
     _logging.basicConfig(level=_logging.INFO)
     for lib in ("httpx", "sentence_transformers", "transformers", "urllib3", "chromadb"):
         _logging.getLogger(lib).setLevel(_logging.WARNING)
 
     agent = RetrieveAgent()
-    if len(sys.argv) > 1:
-        q = " ".join(sys.argv[1:])
-    else:
-        q = input("Incident or query: ")
-    out = agent.retrieve(q)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--customer-id", required=True, type=int)
+    parser.add_argument("query", nargs="*")
+    args = parser.parse_args()
+    q = " ".join(args.query) or input("Incident or query: ")
+    out = agent.retrieve(q, customer_id=args.customer_id)
     print(json.dumps(out, indent=2, ensure_ascii=False))
