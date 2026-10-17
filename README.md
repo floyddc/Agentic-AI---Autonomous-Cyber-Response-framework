@@ -98,6 +98,14 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
 
   - `docker exec -it python-app python -m RAG.build_index`
 
+Se il worker di retrieval fallisce con `chromadb.errors.InternalError: Error finding id`, ricostruire l'indice prima di riprovare. Fermare prima l'applicazione per evitare query durante il reset:
+
+  - `docker compose stop python`
+  - `docker compose run --rm --no-deps python python -m RAG.build_index --reset`
+  - `docker compose up -d python`
+
+`--reset` ricrea la collection Chroma e reindicizza i documenti dai database PostgreSQL; non elimina i dati sorgente né il volume Postgres.
+
 
 ## Eseguire il workflow MAPE-K
 Inviare un alert JSON con `POST /alerts` (in PowerShell):
@@ -120,7 +128,7 @@ Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azion
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --tail 12`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail 14`
 
   - `docker logs otel-collector --tail <N>`
 

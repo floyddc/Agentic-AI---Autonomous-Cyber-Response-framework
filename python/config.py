@@ -18,25 +18,25 @@ PROCESSED_DIR = os.path.join(KNOWLEDGE_DIR, "processed_data")
 ENRICHED_INCIDENTS_DIR = os.path.join(PROCESSED_DIR, "enriched_incidents")
 NORMALIZED_ALERTS_DIR = os.path.join(PROCESSED_DIR, "normalized_alerts")
 INDICES_DIR = os.path.join(KNOWLEDGE_DIR, "indices")
-CACHE_DIR = os.environ.get("CACHE_DIR", "/root/.cache/huggingface")
+CACHE_DIR = "/root/.cache/huggingface"
 
 # PIPELINE & OLLAMA SETUP ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-WARMUP_ON = os.environ.get("WARMUP_ON", True)                        # change it if you don't wanna warmup the pipeline
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
-API_HOST = os.environ.get("API_HOST", "0.0.0.0")
-API_PORT = int(os.environ.get("API_PORT", "8000"))
+WARMUP_ON = True                        # change it if you don't wanna warmup the pipeline
+OLLAMA_HOST = "http://host.docker.internal:11434"
+API_HOST = "0.0.0.0"
+API_PORT = 8000
 
 # RERANKER & EMBEDDER (CPU MODELS) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 50
 TOP_K = 5
-RERANKER_MODEL = os.environ.get("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L2-v2")
-RERANK_CANDIDATES = int(os.environ.get("RERANK_CANDIDATES", "10"))
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L2-v2"
+RERANK_CANDIDATES = 10
+EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
 # TRIAGER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 VALID_SEVERITIES = ("low", "medium", "high", "critical")
-TRIAGE_MODEL = os.environ.get("TRIAGE_MODEL", "qwen3:0.6b")
+TRIAGE_MODEL = "qwen3:0.6b"
 TRIAGE_SYSTEM_PROMPT = (
     "You are the AI Triage agent in a cyber-response system. "
     "Given a raw security alert (from EDR/XDR/SIEM), together with "
@@ -58,8 +58,8 @@ TRIAGE_SYSTEM_PROMPT = (
 )
 
 # PLANNER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-PLAN_MODEL = os.environ.get("PLAN_MODEL", "qwen3:4b-instruct")
-ACTION_PLAN_CONTEXT_CHARS = int(os.environ.get("ACTION_PLAN_CONTEXT_CHARS", "4500"))
+PLAN_MODEL = "qwen3:4b-instruct"
+ACTION_PLAN_CONTEXT_CHARS = 4500
 MAX_ACTIONS_PER_PLAN = 3
 ACTION_PLAN_SYSTEM_PROMPT = (
     "You are a Response Agent."
@@ -75,16 +75,16 @@ ACTION_PLAN_SYSTEM_PROMPT = (
 )
 
 # DB ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
-POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
-POSTGRES_USER = os.environ.get("POSTGRES_USER", "cyberresponse")
-POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "cyberresponse")
-POSTGRES_DB = os.environ.get("POSTGRES_DB", "incident_registry")
+POSTGRES_HOST = "postgres"
+POSTGRES_PORT = "5432"
+POSTGRES_USER = "cyberresponse"
+POSTGRES_PASSWORD = "cyberresponse"
+POSTGRES_DB = "incident_registry"
 POSTGRES_OPERATIONAL_DB = POSTGRES_DB
-POSTGRES_KNOWLEDGE_DB = os.environ.get("POSTGRES_KNOWLEDGE_DB", "knowledge")
+POSTGRES_KNOWLEDGE_DB = "knowledge"
 COLLECTION_NAME = "cyber_response_kb"
 
 # OPEN TELEMETRY ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-OTEL_SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", "cyber-response-agents")
-OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
-OTEL_METRIC_EXPORT_INTERVAL_MS = int(os.environ.get("OTEL_METRIC_EXPORT_INTERVAL_MS", "5000"))
+OTEL_SERVICE_NAME = "cyber-response-agents"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317"
+OTEL_METRIC_EXPORT_INTERVAL_MS = 5000
