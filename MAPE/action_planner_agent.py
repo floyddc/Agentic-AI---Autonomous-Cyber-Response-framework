@@ -43,20 +43,35 @@ class ActionPlannerAgent:
 
 
     def _parse_action_plan(self, content: str) -> dict:
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("LLM returned empty action-plan content")
+
         content = content.strip()
 
         try:
             plan = json.loads(content)
-
-        except json.JSONDecodeError:
-            decoder = json.JSONDecoder()
-            plan, _ = decoder.raw_decode(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"LLM returned invalid JSON: {exc}") from exc
 
         if not isinstance(plan, dict):
-            raise ValueError("LLM action plan is not a JSON object")
+            raise ValueError("LLM action plan must be a JSON object")
 
-        if not isinstance(plan.get("actions"), list):
-            raise ValueError("LLM action plan does not contain an actions list")
+        actions = plan.get("actions")
+
+        if not isinstance(actions, list):
+            raise ValueError("LLM action plan must contain an 'actions' list; received keys={list(plan.keys())}")
+
+        for index, item in enumerate(actions):
+            if not isinstance(item, dict):
+                raise ValueError(f"Action at index {index} must be a JSON object")
+
+            action_name = item.get("action")
+
+            if not isinstance(action_name, str) or not action_name.strip():
+                raise ValueError(f"Action at index {index} has no valid action name")
+
+            if action_name not in self.allowed_actions:
+                raise ValueError(f"Unsupported action at index {index}: {action_name}")
 
         return plan
 
