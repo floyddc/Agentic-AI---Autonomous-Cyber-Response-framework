@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Prima clona la repo del progetto, apri /python/config.py e cambia eventualmente i modelli Ollama.
+# Prima clona la repo del progetto, apri /python/config.py e cambia eventualmente i modelli Ollama. Sposta poi questo script fuori dalla cartella, controlla se Ollama
+# è installato ed esegui lo script.
 
 set -Eeuo pipefail
 
@@ -8,7 +9,7 @@ set -Eeuo pipefail
 # Configurazione
 # ============================================================
 
-PROJECT_DIR="./Agentic AI - Autonomous Cyber-Response framework"
+PROJECT_DIR="./Agentic-AI---Autonomous-Cyber-Response-framework"
 CONFIG_FILE="$PROJECT_DIR/python/config.py"
 
 # ============================================================
@@ -83,14 +84,7 @@ echo "📦 Modello di triage: $TRIAGE_MODEL"
 echo "📦 Modello di pianificazione: $PLAN_MODEL"
 
 # ============================================================
-# 3. Installazione di Ollama
-# ============================================================
-
-echo "📥 Installazione di Ollama..."
-curl -fsSL https://ollama.com/install.sh | sh
-
-# ============================================================
-# 4. Download dei modelli
+# 3. Download dei modelli
 # ============================================================
 
 echo "📥 Download del modello di triage..."
@@ -104,7 +98,7 @@ else
 fi
 
 # ============================================================
-# 5. Configurazione systemd di Ollama
+# 4. Configurazione systemd di Ollama
 # ============================================================
 
 echo "⚙️ Configurazione del servizio Ollama..."
@@ -117,7 +111,7 @@ Environment="OLLAMA_HOST=0.0.0.0:11434"
 EOF
 
 # ============================================================
-# 6. Ricarica e riavvio del servizio
+# 5. Ricarica e riavvio del servizio
 # ============================================================
 
 echo "🔄 Ricaricamento configurazione systemd..."
@@ -134,7 +128,7 @@ if ! sudo systemctl is-active --quiet ollama; then
 fi
 
 # ============================================================
-# 7. Completamento
+# 6. Completamento
 # ============================================================
 
 echo "✅ Tutte le operazioni sono state completate correttamente!"
