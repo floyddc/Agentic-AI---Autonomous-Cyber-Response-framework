@@ -118,7 +118,7 @@ class RetrieveAgent:
                 self.logger.exception("Failed to log retrieve_agent action to the incident registry")
 
             logging_agent.record(
-                "retrieve_agent", "retrieve", status="error", duration_ms=total_duration_ms, incident_id=incident_id,
+                "retrieve_agent", "retrieve", status="success", duration_ms=total_duration_ms, incident_id=incident_id,
                 details={
                     "collection_ms": retrieval_metrics.get("collection_ms", 0.0),
                     "embedding_ms": retrieval_metrics.get("embedding_ms", 0.0),
@@ -138,7 +138,7 @@ class RetrieveAgent:
             self.logger.exception("Retrieve failed")
             
             logging_agent.record(
-                            "retrieve_agent", "retrieve", status="success", duration_ms=total_duration_ms, incident_id=incident_id,
+                            "retrieve_agent", "retrieve", status="error", duration_ms=total_duration_ms, incident_id=incident_id,
                             details={
                                 "error": str(exc),
                                 "collection_ms": retrieval_metrics.get("collection_ms", 0.0),

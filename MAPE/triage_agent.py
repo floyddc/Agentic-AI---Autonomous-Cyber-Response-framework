@@ -9,6 +9,7 @@ from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
 
+
 class TriageAgent:
 
     def __init__(self, model: str = config.TRIAGE_MODEL, host: str = config.OLLAMA_HOST, registry: Optional[IncidentRegistry] = None):
@@ -25,6 +26,22 @@ class TriageAgent:
         if any(k in text for k in ("suspicious", "anomaly", "failed_login")):
             return "medium"
         return "low"
+
+    def _normalize_category(self, raw_payload: Dict[str, Any], category: str) -> str:
+        alert_text = json.dumps(raw_payload, ensure_ascii=False, default=str).lower()
+        has_phishing_evidence = any(indicator in alert_text for indicator in ("phishing", "spearphishing"))
+        has_malicious_delivery = any(
+            indicator in alert_text
+            for indicator in (
+                "malicious attachment",
+                "malicious document",
+                "macro-enabled",
+                "macro-based malware",
+            )
+        )
+        if has_phishing_evidence and has_malicious_delivery:
+            return "Initial Access"
+        return category
 
     def _llm_triage(self, raw_payload: Dict[str, Any], source: str, context: str = "") -> Optional[Dict[str, Any]]:
         try:
@@ -47,15 +64,21 @@ class TriageAgent:
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
-                format="json",
+                format=config.TRIAGE_RESPONSE_SCHEMA,
                 think=False,
                 options={"temperature": 0},
                 keep_alive=-1,
             )
             content = response["message"]["content"]
             data = json.loads(content)
+            if not isinstance(data, dict):
+                raise ValueError("LLM triage response must be a JSON object")
+            for field in ("summary", "description", "category", "severity"):
+                if not isinstance(data.get(field), str) or not data[field].strip():
+                    raise ValueError(f"LLM triage response has no valid {field!r}")
             if data.get("severity") not in config.VALID_SEVERITIES:
                 data["severity"] = self._heuristic_severity(raw_payload)
+            data["category"] = self._normalize_category(raw_payload, data["category"])
             return data
         except Exception:
             logger.exception("LLM triage failed, falling back to heuristic classification")
@@ -90,10 +113,11 @@ class TriageAgent:
             details=result
         )
 
-        logging_agent.record("triage_agent", "triage", status="success", duration_ms=llm_total_ms, incident_id=incident_id,
+        logging_agent.record("triage_agent", "triage", status="fallback" if fallback_used else "success", duration_ms=llm_total_ms, incident_id=incident_id,
             details={
                 "model": self.model,
                 "fallback_used": fallback_used,
+                "fallback_reason": "llm_or_response_error" if fallback_used else None,
                 "context_length": len(context or ""),
                 "raw_payload_length": len(json.dumps(raw_payload, ensure_ascii=False, default=str)),
                 "severity": result.get("severity"),

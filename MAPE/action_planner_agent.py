@@ -1,12 +1,10 @@
 import json
 import logging
 import time
-import glob
 import os
-from typing import Any, Dict, List
+from pathlib import PurePosixPath, PureWindowsPath
 from ollama import Client
 import config
-from RAG.context_builder import build_context
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
@@ -19,10 +17,10 @@ class ActionPlannerAgent:
         self.client = Client(host=host)
         self.registry = registry or IncidentRegistry()
         self.actions_catalog = self._load_actions_catalog()
-        self.allowed_actions = {
-            action["action"]
-            for action in self.actions_catalog["actions"]
+        self.actions_by_name = {
+            action["action"]: action for action in self.actions_catalog["actions"]
         }
+        self.allowed_actions = set(self.actions_by_name)
 
     def _load_actions_catalog(self) -> dict:
         catalog_path = os.path.join(
@@ -62,6 +60,10 @@ class ActionPlannerAgent:
             raise ValueError(
                 f"LLM action plan must contain an 'actions' list; received keys={list(plan.keys())}"
             )
+        if not actions or len(actions) > config.MAX_ACTIONS_PER_PLAN:
+            raise ValueError(f"LLM action plan must contain between 1 and {config.MAX_ACTIONS_PER_PLAN} actions")
+        if not isinstance(plan.get("summary"), str) or not plan["summary"].strip():
+            raise ValueError("LLM action plan must contain a non-empty summary")
 
         for index, item in enumerate(actions):
             if not isinstance(item, dict):
@@ -74,8 +76,46 @@ class ActionPlannerAgent:
 
             if action_name not in self.allowed_actions:
                 raise ValueError(f"Unsupported action at index {index}: {action_name}")
+            missing_fields = [
+                field
+                for field in self.actions_by_name[action_name].get("required_fields", [])
+                if not isinstance(item.get(field), str) or not item[field].strip()
+            ]
+            if missing_fields:
+                raise ValueError(f"Action at index {index} ({action_name}) is missing required fields: {missing_fields}")
+            if action_name == "isolate_host":
+                target = item["target"]
+                if PureWindowsPath(target).is_absolute() or PurePosixPath(target).is_absolute():
+                    raise ValueError(f"Action at index {index} (isolate_host) has a file-path-like target; expected a hostname or endpoint identifier")
 
         return plan
+
+    def _action_plan_schema(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": config.MAX_ACTIONS_PER_PLAN,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": sorted(self.allowed_actions),
+                            },
+                            "target": {"type": "string"},
+                            "justification": {"type": "string"},
+                            "description": {"type": "string"},
+                        },
+                        "required": ["action"],
+                    },
+                },
+            },
+            "required": ["summary", "actions"],
+        }
 
 
     def propose_action_plan(self, incident: dict, context: str, incident_id: int = None) -> dict:
@@ -106,25 +146,32 @@ class ActionPlannerAgent:
             for action in self.actions_catalog["actions"]
         ]
         catalog_text = json.dumps(catalog_for_llm, ensure_ascii=False, indent=2)
+        response_schema = self._action_plan_schema()
 
         messages = [
             {"role": "system", "content": config.ACTION_PLAN_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Context:\n{context}\n\nIncident: {question}"},
             {
-                "role": "user", "content": (
-                                    f"ACTION CATALOG:\n"
-                                    f"{catalog_text}\n\n"
-                                    f"RETRIEVED CONTEXT:\n"
-                                    f"{context}\n\n"
-                                    f"INCIDENT:\n"
-                                    f"{question}")
+                "role": "user",
+                "content": (
+                    f"ACTION CATALOG:\n{catalog_text}\n\n"
+                    f"RETRIEVED CONTEXT (use only if directly relevant):\n{context}\n\n"
+                    f"AUTHORITATIVE INCIDENT:\n{question}\n\n"
+                    f"OUTPUT SCHEMA:\n"
+                    f"{json.dumps(response_schema, ensure_ascii=False)}"
+                ),
             }
         ]
 
         try:
             ## LLM inference
             llm_start = time.perf_counter()
-            response = self.client.chat(model=self.model, messages=messages, format="json", keep_alive=-1)
+            response = self.client.chat(
+                model=self.model,
+                messages=messages,
+                format=response_schema,
+                options={"temperature": 0},
+                keep_alive=-1,
+            )
             llm_ms = (time.perf_counter() - llm_start) * 1000
 
             failure_stage = "response_extraction"
