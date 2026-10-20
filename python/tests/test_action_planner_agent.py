@@ -58,7 +58,8 @@ class ActionPlannerAgentTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "missing required fields"):
             agent._parse_action_plan(
-                '{"summary":"Contain","actions":[{"action":"isolate_host"}]}'
+                '{"summary":"Contain","actions":[{"action":"isolate_host",'
+                '"justification":"Contain suspected activity."}]}'
             )
 
     def test_isolate_host_rejects_file_path_as_target(self):
@@ -74,7 +75,8 @@ class ActionPlannerAgentTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "file-path-like target"):
             agent._parse_action_plan(
                 '{"summary":"Contain","actions":[{"action":"isolate_host",'
-                '"target":"C:\\\\Users\\\\analyst\\\\Downloads\\\\malware.exe"}]}'
+                '"target":"C:\\\\Users\\\\analyst\\\\Downloads\\\\malware.exe",'
+                '"justification":"Contain suspected activity."}]}'
             )
 
     @patch("MAPE.action_planner_agent.logging_agent")

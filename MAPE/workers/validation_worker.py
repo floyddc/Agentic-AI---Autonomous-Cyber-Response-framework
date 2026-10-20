@@ -46,7 +46,12 @@ class ValidationWorker(Worker):
         if severity not in config.VALID_SEVERITIES: raise RuntimeError(f"Action-proposed event {event.event_id} has an invalid severity: {severity!r}")
 
         # validation
-        validation_response = self.validation_agent.validate(event.incident_id, action_plan, severity)
+        validation_response = self.validation_agent.validate(
+            event.incident_id,
+            action_plan,
+            severity,
+            incident=incident,
+        )
         if (not isinstance(validation_response, tuple) or len(validation_response) != 2): raise RuntimeError("ValidationAgent returned an invalid result")
         is_valid, validation_result = validation_response
         if not isinstance(is_valid, bool) or not isinstance(validation_result, dict): raise RuntimeError("ValidationAgent returned an invalid result")

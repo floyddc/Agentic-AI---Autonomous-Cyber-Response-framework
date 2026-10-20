@@ -56,6 +56,7 @@ class ValidationWorkerTests(unittest.TestCase):
             event.incident_id,
             event.payload["action_plan"],
             "high",
+            incident=worker.registry.get_incident.return_value,
         )
         transition = worker.transition_incident.call_args.kwargs
         self.assertEqual(transition["status"], STATUS_VALIDATED)

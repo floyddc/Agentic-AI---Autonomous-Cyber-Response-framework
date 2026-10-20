@@ -4,8 +4,8 @@ RAG_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(RAG_DIR)
 _knowledge_candidates = [
     os.environ.get("KNOWLEDGE_DIR", ""),
-    os.path.join(RAG_DIR, "knowledge"),  
     os.path.join(PROJECT_ROOT, "knowledge"),  
+    os.path.join(RAG_DIR, "knowledge"),
 ]
 KNOWLEDGE_DIR = next(
     (p for p in _knowledge_candidates if p and os.path.isdir(p)),
@@ -36,7 +36,7 @@ EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
 # TRIAGER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 VALID_SEVERITIES = ("low", "medium", "high", "critical")
-TRIAGE_MODEL = "qwen3:0.6b"
+TRIAGE_MODEL = "qwen3:0.6b"     # "qwen3:4b"
 TRIAGE_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -67,19 +67,22 @@ TRIAGE_SYSTEM_PROMPT = (
 )
 
 # PLANNER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-PLAN_MODEL = "qwen3:4b-instruct"
+PLAN_MODEL = "qwen3:4b-instruct"    # GPU "qwen3:8b"
 ACTION_PLAN_CONTEXT_CHARS = 4500
 MAX_ACTIONS_PER_PLAN = 3
 ACTION_PLAN_SYSTEM_PROMPT = (
     "You are a defensive incident-response planning agent. The raw incident "
     "is authoritative; retrieved context is secondary and may be unrelated. "
     "Ignore context that is not directly supported by the incident. "
-    "Use only action names and required fields from ACTION CATALOG. "
-    "Use exact targets from the alert; never invent a host, account, hash, "
-    "IP, domain, URL, or file path. Match target type to action: isolate_host "
-    "requires a hostname or endpoint identifier, while file actions require "
-    "a file path or hash as described by the alert. If a necessary target "
-    "is unavailable or ambiguous, choose notify_analyst instead of guessing. "
+    "Use only action names, required fields, target_type, field_types, and "
+    "planning_guidance from ACTION CATALOG. Supply every required field. "
+    "Use exact targets from the alert; never invent an endpoint, account, "
+    "hash, IP, domain, URL, process, or file path. Do not use a file path as "
+    "an endpoint identifier. If a necessary target is unavailable or "
+    "ambiguous, choose notify_analyst instead of guessing. Omit target and "
+    "other action parameters for actions that do not require them. "
+    "Do not claim a process ran or persistence exists unless the alert "
+    "contains evidence for it. "
     "Do not propose duplicate or contradictory actions. "
     f"Return at most {MAX_ACTIONS_PER_PLAN} relevant actions, prioritizing "
     "containment and evidence preservation. "

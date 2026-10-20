@@ -76,6 +76,8 @@ class ActionPlannerAgent:
 
             if action_name not in self.allowed_actions:
                 raise ValueError(f"Unsupported action at index {index}: {action_name}")
+            if not isinstance(item.get("justification"), str) or not item["justification"].strip():
+                raise ValueError(f"Action at index {index} has no valid justification")
             missing_fields = [
                 field
                 for field in self.actions_by_name[action_name].get("required_fields", [])
@@ -107,14 +109,22 @@ class ActionPlannerAgent:
                                 "enum": sorted(self.allowed_actions),
                             },
                             "target": {"type": "string"},
+                            **{
+                                field: {"type": "string"}
+                                for action in self.actions_catalog["actions"]
+                                for field in action.get("required_fields", [])
+                                if field not in {"action", "target"}
+                            },
                             "justification": {"type": "string"},
                             "description": {"type": "string"},
                         },
-                        "required": ["action"],
+                        "required": ["action", "justification"],
+                        "additionalProperties": False,
                     },
                 },
             },
             "required": ["summary", "actions"],
+            "additionalProperties": False,
         }
 
 
@@ -141,7 +151,10 @@ class ActionPlannerAgent:
             {
                 "action": action["action"],
                 "description": action.get("description"),
-                "required_fields": action.get("required_fields", [])
+                "required_fields": action.get("required_fields", []),
+                "target_type": action.get("target_type"),
+                "field_types": action.get("field_types", {}),
+                "planning_guidance": action.get("planning_guidance"),
             }
             for action in self.actions_catalog["actions"]
         ]

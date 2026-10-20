@@ -4,138 +4,186 @@
       "action": "isolate_host",
       "description": "Isolate an endpoint from the network via EDR to stop lateral movement.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier from the alert, never a file path. Only propose when the alert identifies the affected endpoint.",
       "max_auto_severity": "high"
     },
     {
       "action": "block_ip",
       "description": "Block an IP address at the firewall/XDR to stop C2 or exfiltration traffic.",
       "required_fields": ["target"],
+      "target_type": "ip_address",
+      "planning_guidance": "Use only an IP address explicitly present in the alert and associated with the suspicious activity.",
       "max_auto_severity": "high"
     },
     {
       "action": "block_network_traffic",
       "description": "Block network traffic to or from a suspicious IP, domain, port, or protocol at the firewall/XDR.",
       "required_fields": ["target"],
+      "target_type": "network_indicator",
+      "planning_guidance": "Use one explicit IP, CIDR, domain, URL, or protocol/port indicator from the alert. Prefer a more specific block_ip, block_domain, or block_url action when possible.",
       "max_auto_severity": "high"
     },
     {
       "action": "block_domain",
       "description": "Block resolution or network access to a suspicious or malicious domain through DNS, firewall, or secure web gateway controls.",
       "required_fields": ["target"],
+      "target_type": "domain",
+      "planning_guidance": "Use only the domain explicitly identified as malicious in the alert; do not use an email address or full URL.",
       "max_auto_severity": "high"
     },
     {
       "action": "block_url",
       "description": "Block access to a specific malicious URL through the secure web gateway or proxy.",
       "required_fields": ["target"],
+      "target_type": "url",
+      "planning_guidance": "Use the exact HTTP or HTTPS URL from the alert, not a domain or email address.",
       "max_auto_severity": "high"
     },
     {
       "action": "monitor_process_network_traffic",
       "description": "Increase monitoring of network connections created by processes on the affected host.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier, not a file path or process name.",
       "max_auto_severity": "high"
     },
     {
       "action": "enable_ssl_tls_inspection",
       "description": "Enable SSL/TLS inspection for the relevant traffic scope to detect encrypted C2 communication.",
       "required_fields": ["target"],
+      "target_type": "network_indicator",
+      "planning_guidance": "Specify a narrowly scoped network or proxy policy scope supported by the alert; do not suggest enabling inspection globally.",
       "max_auto_severity": "medium"
     },
     {
       "action": "audit_power_shell_executions",
       "description": "Collect and review PowerShell execution history and command-line telemetry on the affected host.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier from the alert.",
       "max_auto_severity": "medium"
     },
     {
       "action": "collect_endpoint_artifacts",
       "description": "Collect relevant endpoint artifacts such as process lists, autoruns, event logs, network connections, and suspicious files for investigation.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier, not a directory or file path. Do not infer that a file was executed.",
       "max_auto_severity": "high"
     },
     {
       "action": "capture_memory",
       "description": "Capture a memory image from the affected endpoint for forensic analysis.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier. Only propose when memory acquisition is supported and relevant to the alert.",
       "max_auto_severity": "medium"
     },
     {
       "action": "log_and_alert_on_unusual_data_flows",
       "description": "Create enhanced logging and alerting for unusual inbound or outbound data flows from the affected host.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier from the alert.",
       "max_auto_severity": "medium"
     },
     {
       "action": "kill_process",
       "description": "Terminate a malicious process on the affected host.",
-      "required_fields": ["target"],
+      "required_fields": ["target", "endpoint"],
+      "target_type": "process_reference",
+      "field_types": {"endpoint": "endpoint_id"},
+      "planning_guidance": "Provide both a process name or ID as target and the affected endpoint identifier. Only propose when process execution is evidenced; do not infer execution from a file being present or downloaded.",
       "max_auto_severity": "critical"
     },
     {
       "action": "quarantine_file",
       "description": "Quarantine a malicious file/artifact detected on the host.",
-      "required_fields": ["target"],
+      "required_fields": ["target", "endpoint"],
+      "target_type": "file_reference",
+      "field_types": {"endpoint": "endpoint_id"},
+      "planning_guidance": "Provide the exact file path or hash as target and the affected endpoint identifier. Use only file references present in the alert.",
       "max_auto_severity": "critical"
     },
     {
       "action": "delete_file",
       "description": "Remove a confirmed malicious file from the affected host.",
-      "required_fields": ["target"],
+      "required_fields": ["target", "endpoint"],
+      "target_type": "file_path",
+      "field_types": {"endpoint": "endpoint_id"},
+      "planning_guidance": "Provide the exact absolute file path and endpoint identifier. Only propose for a confirmed malicious file; prefer quarantine when preserving evidence matters.",
       "max_auto_severity": "high"
     },
     {
       "action": "disable_account",
       "description": "Disable a compromised user/service account in the IdP.",
       "required_fields": ["target"],
+      "target_type": "account_id",
+      "planning_guidance": "Use the exact user or service account identifier explicitly implicated by the alert.",
       "max_auto_severity": "medium"
     },
     {
       "action": "revoke_sessions",
       "description": "Revoke active authentication sessions and refresh tokens for a potentially compromised account.",
       "required_fields": ["target"],
+      "target_type": "account_id",
+      "planning_guidance": "Use the exact account identifier explicitly implicated by the alert.",
       "max_auto_severity": "high"
     },
     {
       "action": "reset_credentials",
       "description": "Force a credential reset for a compromised account.",
       "required_fields": ["target"],
+      "target_type": "account_id",
+      "planning_guidance": "Use the exact account identifier explicitly implicated by the alert; do not infer an account from an email sender.",
       "max_auto_severity": "medium"
     },
     {
       "action": "disable_persistence",
       "description": "Disable a confirmed malicious persistence mechanism such as a scheduled task, service, startup item, or autorun entry.",
-      "required_fields": ["target"],
+      "required_fields": ["target", "endpoint"],
+      "target_type": "persistence_reference",
+      "field_types": {"endpoint": "endpoint_id"},
+      "planning_guidance": "Provide the exact persistence item and endpoint identifier. Only propose when the persistence mechanism is evidenced by the alert.",
       "max_auto_severity": "high"
     },
     {
       "action": "block_hash",
       "description": "Block execution of a known malicious file hash through EDR or application control.",
       "required_fields": ["target"],
+      "target_type": "file_hash",
+      "planning_guidance": "Use an exact MD5, SHA1, or SHA256 hash from the alert, not a path or filename.",
       "max_auto_severity": "high"
     },
     {
       "action": "force_edr_scan",
       "description": "Start an on-demand EDR/antimalware scan on the affected endpoint.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier from the alert, not a file or directory path.",
       "max_auto_severity": "high"
     },
     {
       "action": "increase_endpoint_telemetry",
       "description": "Temporarily increase endpoint telemetry and process, authentication, and network event collection for the affected host.",
       "required_fields": ["target"],
+      "target_type": "endpoint_id",
+      "planning_guidance": "Use a host or EDR endpoint identifier from the alert.",
       "max_auto_severity": "medium"
     },
     {
       "action": "notify_analyst",
       "description": "Escalate the incident to a human SOC analyst without taking automated action.",
       "required_fields": [],
+      "planning_guidance": "Do not include target or other action parameters; the incident itself is the notification context.",
       "max_auto_severity": "critical"
     },
     {
       "action": "no_action",
       "description": "No remediation required, close as benign/false positive.",
       "required_fields": [],
+      "planning_guidance": "Use only when the alert evidence supports a benign or false-positive conclusion. Do not combine with other actions.",
       "max_auto_severity": "critical"
     }
   ]
