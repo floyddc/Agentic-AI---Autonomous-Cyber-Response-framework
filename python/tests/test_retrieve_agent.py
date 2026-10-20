@@ -5,6 +5,56 @@ from MAPE.retrieve_agent import RetrieveAgent
 
 
 class RetrieveAgentTests(unittest.TestCase):
+    def test_incident_query_prioritizes_alert_signals_and_indicators(self):
+        agent = RetrieveAgent(registry=MagicMock())
+
+        query = agent._incident_to_query({
+            "source": "manual",
+            "summary": "Suspicious executable",
+            "customer_id": 1,
+            "raw_payload": {
+                "alert_title": "Threat detected",
+                "alert_source": "SentinelOne",
+                "alert_context": {
+                    "agent": "srvprobe",
+                    "tactic": "Initial Access",
+                    "technique": "T1566",
+                    "description": "Suspicious attachment detected",
+                },
+                "alert_iocs": [{
+                    "ioc_value": "invoice.docm",
+                    "ioc_type_id": 37,
+                    "ioc_description": "Malicious attachment",
+                    "ioc_tags": "phishing,macro",
+                }],
+                "generic_full_log": (
+                    "Threat detected. File: invoice.docm. "
+                    "SHA1: 013dcf46786cbf27de49b22a4abd0435904b0a94. "
+                    "IP: 209.97.189.32. Unrelated verbose log text"
+                ),
+                "irrelevant_blob": "should not enter the search query",
+            },
+        })
+
+        self.assertIn("alert_title: Threat detected", query)
+        self.assertIn("alert_source: SentinelOne", query)
+        self.assertIn("tactic: Initial Access", query)
+        self.assertIn("ioc: invoice.docm", query)
+        self.assertIn("file: invoice.docm", query)
+        self.assertIn("hash: 013dcf46786cbf27de49b22a4abd0435904b0a94", query)
+        self.assertIn("ip: 209.97.189.32", query)
+        self.assertNotIn("Unrelated verbose log text", query)
+        self.assertNotIn("should not enter the search query", query)
+
+    def test_incident_query_caps_length(self):
+        agent = RetrieveAgent(registry=MagicMock())
+
+        query = agent._incident_to_query({
+            "raw_payload": {"alert_description": "A" * 5000},
+        })
+
+        self.assertLessEqual(len(query), 1600)
+
     @patch("MAPE.retrieve_agent.logging_agent")
     @patch("MAPE.retrieve_agent.build_context", return_value="relevant context")
     def test_successful_retrieval_records_success(self, build_context, logging_agent):

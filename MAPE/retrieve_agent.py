@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 from typing import Any, Dict, Optional
 import argparse
@@ -10,6 +11,53 @@ from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
+
+_QUERY_FIELDS = {
+    "alert_title",
+    "title",
+    "alert",
+    "detection_name",
+    "rule_name",
+    "alert_source",
+    "source",
+    "product",
+    "vendor",
+    "alert_description",
+    "description",
+    "message",
+    "event_type",
+    "severity",
+    "alert_severity",
+    "tactic",
+    "technique",
+    "host",
+    "hostname",
+    "endpoint",
+    "agent",
+    "device",
+    "file",
+    "file_name",
+    "filename",
+    "file_path",
+    "path",
+    "process",
+    "process_name",
+    "command_line",
+    "user",
+    "username",
+}
+_IOC_COLLECTION_FIELDS = {"alert_iocs", "iocs", "indicators"}
+_LOG_FIELDS = {"generic_full_log", "windows_full_log", "full_log", "raw_log"}
+_HASH_PATTERN = re.compile(r"\b(?:[a-f0-9]{128}|[a-f0-9]{64}|[a-f0-9]{40})\b", re.IGNORECASE)
+_IP_PATTERN = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
+_URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+_EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_LOG_VALUE_PATTERN = re.compile(
+    r"(?:^|[.\s])(?P<label>file|path|process|image)\s*:\s*(?P<value>.*?)"
+    r"(?=\s+(?:file|path|process|image|sha1|sha256|sha512|ip|storyline|site)\s*:|$)",
+    re.IGNORECASE,
+)
+
 
 class RetrieveAgent:
 
@@ -24,63 +72,57 @@ class RetrieveAgent:
 
         if not isinstance(incident, dict): return str(incident)
 
-        # Convert recursively a JSON into lines
-        def flatten(data: Any, prefix: str = "") -> list[str]:
-            
-            parts = []
+        parts = []
+        seen = set()
 
+        def add(label: str, value: Any, limit: int = 240) -> None:
+            if isinstance(value, (dict, list)) or value is None:
+                return
+            text = " ".join(str(value).split()).rstrip(".,;")
+            if not text:
+                return
+            text = text[:limit]
+            entry = f"{label.casefold()}: {text}"
+            if entry.casefold() not in seen:
+                parts.append(entry)
+                seen.add(entry.casefold())
+
+        def visit(data: Any) -> None:
             if isinstance(data, dict):
                 for key, value in data.items():
-
-                    field_name = f"{prefix}.{key}" if prefix else str(key)
-
-                    if value is None or value == "":
-                        continue
-
-                    if isinstance(value, dict): parts.extend(flatten(value, field_name))
-
-                    elif isinstance(value, list):
-                        for index, item in enumerate(value):
-                            item_path = f"{field_name}.{index}"
-                            if isinstance(item, (dict, list)):
-                                parts.extend(flatten(item, item_path))
-                            elif item is not None and item != "":
-                                parts.append(f"{item_path}: {item}")
-
-                    else:
-                        parts.append(f"{field_name}: {value}")
-
+                    normalized_key = str(key).casefold()
+                    if normalized_key in _QUERY_FIELDS:
+                        add(str(key), value)
+                    elif normalized_key in _IOC_COLLECTION_FIELDS and isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, dict):
+                                add("ioc", item.get("ioc_value", item.get("value")))
+                                add("ioc_type", item.get("ioc_type", item.get("type")))
+                                add("ioc_description", item.get("ioc_description", item.get("description")))
+                                add("ioc_tags", item.get("ioc_tags", item.get("tags")))
+                            else:
+                                add("ioc", item)
+                    elif normalized_key in _LOG_FIELDS and isinstance(value, str):
+                        for match in _LOG_VALUE_PATTERN.finditer(value):
+                            add(match.group("label"), match.group("value"))
+                        for pattern, label in (
+                            (_HASH_PATTERN, "hash"),
+                            (_IP_PATTERN, "ip"),
+                            (_URL_PATTERN, "url"),
+                            (_EMAIL_PATTERN, "email"),
+                        ):
+                            for match in pattern.findall(value):
+                                add(label, match)
+                    elif isinstance(value, (dict, list)):
+                        visit(value)
             elif isinstance(data, list):
-                for index, item in enumerate(data):
-                    item_path = f"{prefix}.{index}" if prefix else str(index)
+                for item in data:
                     if isinstance(item, (dict, list)):
-                        parts.extend(flatten(item, item_path))
-                    elif item is not None and item != "":
-                        parts.append(f"{item_path}: {item}")
+                        visit(item)
 
-            return parts
-
-        raw_payload = incident.get("raw_payload")
-
-        if isinstance(raw_payload, dict):
-
-            parts = []
-            source = incident.get("source")
-
-            if source: parts.append(f"source: {source}")
-
-            parts.extend(flatten(raw_payload))
-
-            if parts: return "\n".join(parts)
-
-            return json.dumps(raw_payload, ensure_ascii=False, default=str)
-
-        # Fallback
-        parts = flatten(incident)
-
-        if parts: return "\n".join(parts)
-
-        return json.dumps(incident, ensure_ascii=False, default=str)
+        visit(incident)
+        query = "\n".join(parts)
+        return query[:1600] if query else json.dumps(incident, ensure_ascii=False, default=str)
 
 
     def retrieve(
@@ -128,7 +170,9 @@ class RetrieveAgent:
                     "retrieval_total_ms": retrieval_metrics.get("total_ms", 0.0),
                     "candidate_k": retrieval_metrics.get("candidate_k", 0),
                     "result_count": retrieval_metrics.get("result_count", 0),
-                    "context_length": (len(context) if context else 0)
+                    "context_length": (len(context) if context else 0),
+                    "candidate_results": retrieval_metrics.get("candidate_results", []),
+                    "reranked_results": retrieval_metrics.get("reranked_results", []),
                 },
             )
             return {"query": q, "context": context}
@@ -149,7 +193,9 @@ class RetrieveAgent:
                                 "retrieval_total_ms": retrieval_metrics.get("total_ms", 0.0),
                                 "candidate_k": retrieval_metrics.get("candidate_k", 0),
                                 "result_count": retrieval_metrics.get("result_count", 0),
-                                "context_length": (len(context) if context else 0)
+                                "context_length": (len(context) if context else 0),
+                                "candidate_results": retrieval_metrics.get("candidate_results", []),
+                                "reranked_results": retrieval_metrics.get("reranked_results", []),
                             },
                         )
             return {"query": q, "error": str(exc)}

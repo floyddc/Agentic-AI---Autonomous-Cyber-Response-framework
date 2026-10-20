@@ -34,6 +34,8 @@ def retrieve(
                 "total_ms": total_ms,
                 "candidate_k": 0,
                 "result_count": 0,
+                "candidate_results": [],
+                "reranked_results": [],
             })
         return []
 
@@ -62,10 +64,30 @@ def retrieve(
             hits.append({"text": cleaned_doc, "metadata": meta, "distance": dist})
     hits_ms = (time.perf_counter() - start) * 1000
 
+    candidate_results = [
+        {
+            "rank": rank,
+            "source": hit["metadata"].get("source"),
+            "category": hit["metadata"].get("category"),
+            "vector_distance": float(hit["distance"]),
+        }
+        for rank, hit in enumerate(hits, start=1)
+    ]
+
     # reranking
     start = time.perf_counter()
-    ranked_hits = rerank(query, hits, top_k=top_k)
+    reranked_hits = rerank(query, hits, top_k=len(hits))
     rerank_ms = (time.perf_counter() - start) * 1000
+    reranked_results = [
+        {
+            "rank": rank,
+            "source": hit["metadata"].get("source"),
+            "category": hit["metadata"].get("category"),
+            "rerank_score": hit.get("rerank_score"),
+        }
+        for rank, hit in enumerate(reranked_hits, start=1)
+    ]
+    ranked_hits = reranked_hits[:top_k]
 
     # total retrieval time
     total_ms = (time.perf_counter() - total_start) * 1000
@@ -80,7 +102,9 @@ def retrieve(
             "rerank_ms": rerank_ms,
             "total_ms": total_ms,
             "candidate_k": candidate_k,
-            "result_count": len(ranked_hits)
+            "result_count": len(ranked_hits),
+            "candidate_results": candidate_results,
+            "reranked_results": reranked_results,
         })
 
     return ranked_hits

@@ -128,11 +128,11 @@ Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azion
 
 ## Controllare metriche e log
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --tail 14`
+  - `docker exec -it python-app python -m MAPE.logging_agent --tail 14; docker logs python-app`
 
   - `docker logs otel-collector --tail <N>`
 
-  - `docker exec -it python-app python -m MAPE.logging_agent --clear` per pulire.
+  - `docker exec -it python-app python -m MAPE.logging_agent --clear; truncate -s 0 "$(docker inspect --format='{{.LogPath}}' python-app)"` per pulire.
 
 Per una nuova esecuzione con gli stessi dati usare un `external_id` differente. Gli script SQL dentro `postgres/init/` vengono eseguiti automaticamente solo quando il volume Postgres viene creato per la prima volta.
 
