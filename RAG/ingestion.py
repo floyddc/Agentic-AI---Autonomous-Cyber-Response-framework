@@ -79,10 +79,6 @@ def _word_windows(text: str, chunk_size: int, overlap: int) -> List[str]:
 
 
 def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE, overlap: int = config.CHUNK_OVERLAP) -> List[str]:
-    """Split on sentence boundaries so chunks never end mid-sentence; consecutive
-    chunks share trailing sentences (up to `overlap` words). A sentence longer than
-    chunk_size falls back to plain word windows."""
-
     chunks: List[str] = []
     current: List[str] = []
     count = 0
@@ -132,7 +128,6 @@ def build_chunks(documents: List[SourceDocument]) -> List[dict]:
     for doc in documents:
         title = _document_title(doc.content)
         for i, chunk in enumerate(chunk_text(doc.content)):
-            # the first chunk already starts with the title; later ones would lose the technique they belong to
             if i > 0 and title:
                 chunk = f"{title}: {chunk}"
             metadata = {

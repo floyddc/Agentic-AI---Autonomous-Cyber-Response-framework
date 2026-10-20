@@ -257,7 +257,6 @@ class ActionPlannerAgent:
             for attempt in range(2):
                 failure_stage = "llm_request"
                 llm_start = time.perf_counter()
-                # think=False: reasoning tokens would otherwise eat the num_predict budget and leave the content empty
                 response = self.client.chat(
                     model=self.model,
                     messages=messages,
@@ -339,7 +338,6 @@ class ActionPlannerAgent:
                 "actions": [{"action": "notify_analyst", "justification": "Automatic planning returned an invalid or incomplete response."}],
             }
 
-        # total execution time
         total_ms = (time.perf_counter() - start) * 1000
 
         try:

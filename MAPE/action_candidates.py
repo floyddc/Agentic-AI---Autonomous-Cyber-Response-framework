@@ -2,15 +2,12 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-
 from .validation_agent import _raw_evidence_text, _valid_target
 
 
 _SECURITY_TAGS = {"c2", "malicious", "malware", "phishing", "suspicious"}
 _FILE_TAGS = {"attachment", "document", "file", "macro"}
-_HASH_PATTERN = re.compile(
-    r"(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{40}|[0-9a-fA-F]{32})"
-)
+_HASH_PATTERN = re.compile(r"(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{40}|[0-9a-fA-F]{32})")
 
 
 @dataclass(frozen=True)

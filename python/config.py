@@ -21,23 +21,23 @@ INDICES_DIR = os.path.join(KNOWLEDGE_DIR, "indices")
 CACHE_DIR = "/root/.cache/huggingface"
 
 # PIPELINE & OLLAMA SETUP ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-WARMUP_ON = True                        # change it if you don't wanna warmup the pipeline
+WARMUP_ON = True                        
 OLLAMA_HOST = "http://host.docker.internal:11434"
-OLLAMA_TIMEOUT_SECONDS = 90             # without it a stuck generation blocks the worker forever (the heartbeat keeps its lease alive)
+OLLAMA_TIMEOUT_SECONDS = 90             
 API_HOST = "0.0.0.0"
 API_PORT = 8000
 
 # RERANKER & EMBEDDER (CPU MODELS) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-CHUNK_SIZE = 200                # words per chunk; keeps each chunk within the embedder token limit (reindex with --reset after changing)
+CHUNK_SIZE = 200                
 CHUNK_OVERLAP = 40
 TOP_K = 5
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L2-v2"
-RERANK_CANDIDATES = 20          # wide pool: duplicates per technique are collapsed after reranking
-RERANK_MIN_SCORE = None         # optional cut-off on the raw cross-encoder logit; off because its scores are poorly calibrated on security text
-RERANK_SCORE_MARGIN = None      # optional: drop hits scoring more than this below the best rerank score
-RERANK_FUSION_WEIGHT = 1.0      # weight of the cross-encoder vote vs the embedding ranking in reciprocal rank fusion (1.0 = equal)
-LEXICAL_FUSION_WEIGHT = 1.5     # BM25 vote, useful for exact evidence words such as "PowerShell" and "downloaded"
-CONTEXT_EXPAND_TOP = 1          # the best N hits are extended with the next chunk of the same document (detection/mitigation text)
+RERANK_CANDIDATES = 20          
+RERANK_MIN_SCORE = None         
+RERANK_SCORE_MARGIN = None      
+RERANK_FUSION_WEIGHT = 1.0      
+LEXICAL_FUSION_WEIGHT = 1.5     
+CONTEXT_EXPAND_TOP = 1          
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
 # TRIAGER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
@@ -74,7 +74,7 @@ TRIAGE_SYSTEM_PROMPT = (
 )
 
 # PLANNER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-PLAN_MODEL = "qwen3:4b-instruct"    # GPU "qwen3:8b"
+PLAN_MODEL = "qwen3:4b-instruct"    # "qwen3:8b"
 ACTION_PLAN_CONTEXT_CHARS = 6000
 ACTION_PLAN_MAX_TOKENS = 800
 MAX_ACTIONS_PER_PLAN = 3

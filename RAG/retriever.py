@@ -92,10 +92,7 @@ def select_hits(
     min_score: Optional[float] = None,
     margin: Optional[float] = None,
 ) -> List[dict]:
-    """Keep the best hit per technique/source and cap at top_k.
 
-    Optional cut-offs on the raw rerank score (disabled by default, see config): hits below
-    min_score, or more than `margin` below the first hit, are dropped."""
     min_score = config.RERANK_MIN_SCORE if min_score is None else min_score
     margin = config.RERANK_SCORE_MARGIN if margin is None else margin
     selected: List[dict] = []
@@ -128,10 +125,7 @@ def fuse_rankings(
     rerank_weight: Optional[float] = None,
     lexical_weight: Optional[float] = None,
 ) -> List[dict]:
-    """Fuse embedding, BM25, and cross-encoder rankings with reciprocal rank fusion.
 
-    The cross-encoder is not tuned for security text and can push a relevant hit far down,
-    so no single ranking can override the others."""
     rerank_weight = config.RERANK_FUSION_WEIGHT if rerank_weight is None else rerank_weight
     lexical_weight = config.LEXICAL_FUSION_WEIGHT if lexical_weight is None else lexical_weight
     vector_rank = {_hit_key(hit): rank for rank, hit in enumerate(vector_hits, start=1)}
@@ -153,7 +147,7 @@ def fuse_rankings(
 
 
 def merge_chunks(current: str, following: str, title: Optional[str] = None) -> str:
-    """Append the next chunk to the current one, dropping the title prefix and the sentences shared by the overlap."""
+
     if title and following.startswith(f"{title}: "):
         following = following[len(title) + 2:]
     current_sentences = split_sentences(current)
@@ -166,7 +160,7 @@ def merge_chunks(current: str, following: str, title: Optional[str] = None) -> s
 
 
 def expand_hits(collection, hits: List[dict], count: int) -> None:
-    """Extend the best hits with the following chunk of the same document, in place."""
+
     for hit in hits[:count]:
         metadata = hit["metadata"]
         index = metadata.get("chunk_index")

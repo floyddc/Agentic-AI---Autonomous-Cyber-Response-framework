@@ -107,7 +107,6 @@ class LoggingAgent:
             return cur.fetchall()
 
 
-# Module-level singleton, shared by every agent that wants to emit metrics.
 logging_agent = LoggingAgent()
 
 
