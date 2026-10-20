@@ -7,6 +7,7 @@ from ollama import Client
 import config
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
+from .validation_agent import _raw_evidence_text, _valid_target
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ActionPlannerAgent:
         return catalog
 
 
-    def _parse_action_plan(self, content: str) -> dict:
+    def _parse_action_plan(self, content: str, incident: dict = None) -> dict:
         if not isinstance(content, str) or not content.strip():
             raise ValueError("LLM returned empty action-plan content")
 
@@ -76,15 +77,52 @@ class ActionPlannerAgent:
 
             if action_name not in self.allowed_actions:
                 raise ValueError(f"Unsupported action at index {index}: {action_name}")
+            catalog_entry = self.actions_by_name[action_name]
             if not isinstance(item.get("justification"), str) or not item["justification"].strip():
                 raise ValueError(f"Action at index {index} has no valid justification")
             missing_fields = [
                 field
-                for field in self.actions_by_name[action_name].get("required_fields", [])
+                for field in catalog_entry.get("required_fields", [])
                 if not isinstance(item.get(field), str) or not item[field].strip()
             ]
             if missing_fields:
                 raise ValueError(f"Action at index {index} ({action_name}) is missing required fields: {missing_fields}")
+
+            allowed_fields = {
+                "action",
+                "justification",
+                "description",
+                *catalog_entry.get("required_fields", []),
+                *catalog_entry.get("field_types", {}).keys(),
+            }
+            if catalog_entry.get("target_type"):
+                allowed_fields.add("target")
+            unsupported_fields = set(item) - allowed_fields
+            if unsupported_fields:
+                raise ValueError(
+                    f"Action at index {index} ({action_name}) has unsupported "
+                    f"fields: {sorted(unsupported_fields)}"
+                )
+
+            typed_fields = dict(catalog_entry.get("field_types", {}))
+            if catalog_entry.get("target_type"):
+                typed_fields["target"] = catalog_entry["target_type"]
+            evidence_text = _raw_evidence_text(incident).casefold()
+            for field, target_type in typed_fields.items():
+                value = item.get(field)
+                if value is None:
+                    continue
+                if not _valid_target(target_type, value):
+                    raise ValueError(
+                        f"Action at index {index} ({action_name}) has an invalid "
+                        f"{field} for target type {target_type!r}"
+                    )
+                if value.strip().casefold() not in evidence_text:
+                    raise ValueError(
+                        f"Action at index {index} ({action_name}) uses {field} "
+                        "that is not present in the raw alert"
+                    )
+
             if action_name == "isolate_host":
                 target = item["target"]
                 if PureWindowsPath(target).is_absolute() or PurePosixPath(target).is_absolute():
@@ -155,6 +193,14 @@ class ActionPlannerAgent:
                 "required_fields": action.get("required_fields", []),
                 "target_type": action.get("target_type"),
                 "field_types": action.get("field_types", {}),
+                "allowed_fields": sorted({
+                    "action",
+                    "justification",
+                    "description",
+                    *action.get("required_fields", []),
+                    *action.get("field_types", {}).keys(),
+                    *(["target"] if action.get("target_type") else []),
+                }),
                 "planning_guidance": action.get("planning_guidance"),
             }
             for action in self.actions_catalog["actions"]
@@ -168,6 +214,9 @@ class ActionPlannerAgent:
                 "role": "user",
                 "content": (
                     f"ACTION CATALOG:\n{catalog_text}\n\n"
+                    "For each action, use only its listed allowed_fields. "
+                    "Use the exact required_fields and target types; omit every "
+                    "field not listed for that action.\n\n"
                     f"RETRIEVED CONTEXT (use only if directly relevant):\n{context}\n\n"
                     f"AUTHORITATIVE INCIDENT:\n{question}\n\n"
                     f"OUTPUT SCHEMA:\n"
@@ -177,30 +226,50 @@ class ActionPlannerAgent:
         ]
 
         try:
-            ## LLM inference
-            llm_start = time.perf_counter()
-            # think=False: reasoning tokens would otherwise eat the num_predict budget and leave the content empty
-            response = self.client.chat(
-                model=self.model,
-                messages=messages,
-                format=response_schema,
-                think=False,
-                options={"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS},
-                keep_alive=-1,
-            )
-            llm_ms = (time.perf_counter() - llm_start) * 1000
+            for attempt in range(2):
+                failure_stage = "llm_request"
+                llm_start = time.perf_counter()
+                # think=False: reasoning tokens would otherwise eat the num_predict budget and leave the content empty
+                response = self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                    format=response_schema,
+                    think=False,
+                    options={"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS},
+                    keep_alive=-1,
+                )
+                llm_ms += (time.perf_counter() - llm_start) * 1000
 
-            failure_stage = "response_extraction"
-            truncated = response.get("done_reason") == "length"
-            content = response["message"]["content"]
-            response_content_length = len(content) if isinstance(content, str) else None
+                failure_stage = "response_extraction"
+                truncated = response.get("done_reason") == "length"
+                content = response["message"]["content"]
+                response_content_length = len(content) if isinstance(content, str) else None
 
-            # JSON parsing + validation
-            failure_stage = "plan_validation"
-            parsing_start = time.perf_counter()
-            plan = self._parse_action_plan(content)
-            parsing_ms = (time.perf_counter() - parsing_start) * 1000
-
+                failure_stage = "plan_validation"
+                parsing_start = time.perf_counter()
+                try:
+                    plan = self._parse_action_plan(content, incident=incident)
+                    parsing_ms += (time.perf_counter() - parsing_start) * 1000
+                    break
+                except ValueError as exc:
+                    parsing_ms += (time.perf_counter() - parsing_start) * 1000
+                    if attempt == 1:
+                        raise
+                    messages.extend([
+                        {"role": "assistant", "content": content},
+                        {
+                            "role": "user",
+                            "content": (
+                                f"The action plan was rejected: {exc}. Return a corrected "
+                                "complete JSON plan. Follow each action's allowed_fields, "
+                                "required_fields, target_type, and field_types exactly. "
+                                "Use only target values present in the raw alert; do not "
+                                "invent or substitute values. If a required value is "
+                                "unavailable, use notify_analyst without target or "
+                                "other action parameters."
+                            ),
+                        },
+                    ])
         except Exception as exc:
             fallback_used = True
             if failure_stage == "llm_request":

@@ -63,6 +63,110 @@ class ActionPlannerAgentTests(unittest.TestCase):
                 '"justification":"Contain suspected activity."}]}'
             )
 
+    def test_action_plan_rejects_fields_not_allowed_by_catalog_entry(self):
+        agent = object.__new__(ActionPlannerAgent)
+        agent.actions_by_name = {
+            "block_ip": {
+                "action": "block_ip",
+                "required_fields": ["target"],
+                "target_type": "ip_address",
+            }
+        }
+        agent.allowed_actions = set(agent.actions_by_name)
+
+        with self.assertRaisesRegex(ValueError, "unsupported fields: \\['endpoint'\\]"):
+            agent._parse_action_plan(
+                '{"summary":"Block indicator","actions":[{"action":"block_ip",'
+                '"target":"209.97.189.32","endpoint":"srvprobe",'
+                '"justification":"Block the IP from the alert."}]}',
+                incident={"raw_payload": {"ip": "209.97.189.32"}},
+            )
+
+    def test_action_plan_rejects_invalid_typed_targets_and_targetless_action_fields(self):
+        agent = object.__new__(ActionPlannerAgent)
+        agent.actions_by_name = {
+            "block_ip": {
+                "action": "block_ip",
+                "required_fields": ["target"],
+                "target_type": "ip_address",
+            },
+            "notify_analyst": {
+                "action": "notify_analyst",
+                "required_fields": [],
+            },
+        }
+        agent.allowed_actions = set(agent.actions_by_name)
+
+        with self.assertRaisesRegex(ValueError, "invalid target for target type 'ip_address'"):
+            agent._parse_action_plan(
+                '{"summary":"Block indicator","actions":[{"action":"block_ip",'
+                '"target":"ip","justification":"Block the IP."}]}',
+                incident={"raw_payload": {"ip": "209.97.189.32"}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "unsupported fields: \\['target'\\]"):
+            agent._parse_action_plan(
+                '{"summary":"Escalate","actions":[{"action":"notify_analyst",'
+                '"target":"analyst","justification":"Review the incident."}]}',
+                incident={"raw_payload": {}},
+            )
+
+    @patch("MAPE.action_planner_agent.logging_agent")
+    def test_invalid_action_fields_are_retried_with_catalog_feedback(self, logging_agent):
+        agent = object.__new__(ActionPlannerAgent)
+        agent.model = "test-model"
+        agent.client = MagicMock()
+        agent.client.chat.side_effect = [
+            {
+                "message": {
+                    "content": (
+                        '{"summary":"Block indicator","actions":[{"action":"block_ip",'
+                        '"target":"209.97.189.32","endpoint":"srvprobe",'
+                        '"justification":"Block the IP from the alert."}]}'
+                    )
+                }
+            },
+            {
+                "message": {
+                    "content": (
+                        '{"summary":"Block indicator","actions":[{"action":"block_ip",'
+                        '"target":"209.97.189.32",'
+                        '"justification":"Block the IP from the alert."}]}'
+                    )
+                }
+            },
+        ]
+        agent.registry = MagicMock()
+        agent.actions_catalog = {
+            "actions": [
+                {
+                    "action": "block_ip",
+                    "description": "Block an IP",
+                    "required_fields": ["target"],
+                    "target_type": "ip_address",
+                    "planning_guidance": "Use the IP in the alert.",
+                }
+            ]
+        }
+        agent.actions_by_name = {
+            "block_ip": agent.actions_catalog["actions"][0]
+        }
+        agent.allowed_actions = set(agent.actions_by_name)
+
+        plan = agent.propose_action_plan(
+            {"source": "edr", "raw_payload": {"ip": "209.97.189.32"}},
+            "",
+            incident_id=9,
+        )
+
+        self.assertEqual(plan["actions"][0]["target"], "209.97.189.32")
+        self.assertEqual(agent.client.chat.call_count, 2)
+        retry_prompt = agent.client.chat.call_args.kwargs["messages"][-1]["content"]
+        self.assertIn("unsupported fields", retry_prompt)
+        self.assertIn("allowed_fields", retry_prompt)
+        logging_agent.record.assert_called_once()
+        self.assertEqual(logging_agent.record.call_args.kwargs["status"], "success")
+
     def test_isolate_host_rejects_file_path_as_target(self):
         agent = object.__new__(ActionPlannerAgent)
         agent.actions_by_name = {
