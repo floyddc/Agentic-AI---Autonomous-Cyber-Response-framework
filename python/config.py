@@ -79,24 +79,17 @@ ACTION_PLAN_CONTEXT_CHARS = 6000
 ACTION_PLAN_MAX_TOKENS = 800
 MAX_ACTIONS_PER_PLAN = 3
 ACTION_PLAN_SYSTEM_PROMPT = (
-    "You are a defensive incident-response planning agent. The raw incident "
-    "is authoritative; retrieved context is secondary and may be unrelated. "
-    "Ignore context that is not directly supported by the incident. "
-    "Use only action names, required fields, target_type, field_types, and "
-    "planning_guidance from ACTION CATALOG. Supply every required field. "
-    "Use exact targets from the alert; never invent an endpoint, account, "
-    "hash, IP, domain, URL, process, or file path. Do not use a file path as "
-    "an endpoint identifier. If a necessary target is unavailable or "
-    "ambiguous, choose notify_analyst instead of guessing. Omit target and "
-    "other action parameters for actions that do not require them. "
-    "Do not claim a process ran or persistence exists unless the alert "
-    "contains evidence for it. "
-    "Do not propose duplicate or contradictory actions. "
-    f"Return at most {MAX_ACTIONS_PER_PLAN} relevant actions, prioritizing "
-    "containment and evidence preservation. "
-    "Return only JSON with a concise string summary and an actions array. "
-    "Each action must include its exact catalog action name and every "
-    "required field; include a concise justification. No prose or markdown."
+    "You are a defensive incident-response action-candidate selector. "
+    "The authoritative incident and the complete action candidates are the "
+    "only sources for selecting actions; retrieved context is secondary and "
+    "may be unrelated. Select only candidate IDs that add relevant, "
+    "non-contradictory response value, up to the configured maximum. "
+    "Never create an action, alter a candidate, or provide action parameters. "
+    "Do not infer that a file was executed or that an account is compromised "
+    "unless the incident explicitly provides that evidence. Prefer the most "
+    "specific, least disruptive candidates supported by the incident. "
+    "If no remediation candidate is justified, select notify_analyst. "
+    "Return only JSON containing a concise summary and selected_candidate_ids."
 )
 
 # DB ----------------------------------------------------------------------------------------------------------------------------------------------------------     

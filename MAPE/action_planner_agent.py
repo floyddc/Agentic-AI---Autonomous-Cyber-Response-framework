@@ -2,11 +2,13 @@ import json
 import logging
 import time
 import os
+from typing import List
 from pathlib import PurePosixPath, PureWindowsPath
 from ollama import Client
 import config
 from knowledge.registry import IncidentRegistry
 from .logging_agent import logging_agent
+from .action_candidates import ActionCandidate, build_action_candidates
 from .validation_agent import _raw_evidence_text, _valid_target
 
 logger = logging.getLogger(__name__)
@@ -130,40 +132,74 @@ class ActionPlannerAgent:
 
         return plan
 
-    def _action_plan_schema(self) -> dict:
+    def _candidate_selection_schema(self, candidates: List[ActionCandidate]) -> dict:
+        candidate_ids = [candidate.candidate_id for candidate in candidates]
         return {
             "type": "object",
             "properties": {
                 "summary": {"type": "string"},
-                "actions": {
+                "selected_candidate_ids": {
                     "type": "array",
                     "minItems": 1,
                     "maxItems": config.MAX_ACTIONS_PER_PLAN,
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "action": {
-                                "type": "string",
-                                "enum": sorted(self.allowed_actions),
-                            },
-                            "target": {"type": "string"},
-                            **{
-                                field: {"type": "string"}
-                                for action in self.actions_catalog["actions"]
-                                for field in action.get("required_fields", [])
-                                if field not in {"action", "target"}
-                            },
-                            "justification": {"type": "string"},
-                            "description": {"type": "string"},
-                        },
-                        "required": ["action", "justification"],
-                        "additionalProperties": False,
-                    },
+                    "items": {"type": "string", "enum": candidate_ids},
                 },
             },
-            "required": ["summary", "actions"],
+            "required": ["summary", "selected_candidate_ids"],
             "additionalProperties": False,
         }
+
+    def _parse_candidate_selection(
+        self,
+        content: str,
+        candidates: List[ActionCandidate],
+    ) -> dict:
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("LLM returned empty candidate-selection content")
+        try:
+            selection = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"LLM returned invalid JSON: {exc}") from exc
+        if not isinstance(selection, dict):
+            raise ValueError("Candidate selection must be a JSON object")
+        if set(selection) != {"summary", "selected_candidate_ids"}:
+            raise ValueError(
+                "Candidate selection must contain only 'summary' and "
+                "'selected_candidate_ids'"
+            )
+        if not isinstance(selection.get("summary"), str) or not selection["summary"].strip():
+            raise ValueError("Candidate selection must contain a non-empty summary")
+
+        selected_ids = selection.get("selected_candidate_ids")
+        if (
+            not isinstance(selected_ids, list)
+            or not selected_ids
+            or len(selected_ids) > config.MAX_ACTIONS_PER_PLAN
+        ):
+            raise ValueError(
+                f"Select between 1 and {config.MAX_ACTIONS_PER_PLAN} candidates"
+            )
+        if any(not isinstance(candidate_id, str) for candidate_id in selected_ids):
+            raise ValueError("Selected candidate IDs must be strings")
+        if len(selected_ids) != len(set(selected_ids)):
+            raise ValueError("Selected candidate IDs must not contain duplicates")
+
+        candidates_by_id = {
+            candidate.candidate_id: candidate for candidate in candidates
+        }
+        unknown_ids = set(selected_ids) - set(candidates_by_id)
+        if unknown_ids:
+            raise ValueError(
+                f"Unknown candidate IDs: {sorted(unknown_ids)}"
+            )
+
+        selected_actions = [
+            candidates_by_id[candidate_id].action["action"]
+            for candidate_id in selected_ids
+        ]
+        if "no_action" in selected_actions and len(selected_actions) != 1:
+            raise ValueError("'no_action' cannot be combined with other candidates")
+        return selection
 
 
     def propose_action_plan(self, incident: dict, context: str, incident_id: int = None) -> dict:
@@ -185,40 +221,32 @@ class ActionPlannerAgent:
 
         question = json.dumps(prompt_incident, ensure_ascii=False, default=str)
         context = (context or "")[:config.ACTION_PLAN_CONTEXT_CHARS]
-
-        catalog_for_llm = [
-            {
-                "action": action["action"],
-                "description": action.get("description"),
-                "required_fields": action.get("required_fields", []),
-                "target_type": action.get("target_type"),
-                "field_types": action.get("field_types", {}),
-                "allowed_fields": sorted({
-                    "action",
-                    "justification",
-                    "description",
-                    *action.get("required_fields", []),
-                    *action.get("field_types", {}).keys(),
-                    *(["target"] if action.get("target_type") else []),
-                }),
-                "planning_guidance": action.get("planning_guidance"),
-            }
-            for action in self.actions_catalog["actions"]
-        ]
-        catalog_text = json.dumps(catalog_for_llm, ensure_ascii=False, indent=2)
-        response_schema = self._action_plan_schema()
+        candidates = build_action_candidates(
+            incident.get("raw_payload"),
+            self.actions_catalog,
+        )
+        if not candidates:
+            raise ValueError("No complete action candidates could be built")
+        candidates_by_id = {
+            candidate.candidate_id: candidate for candidate in candidates
+        }
+        candidates_text = json.dumps(
+            [candidate.to_prompt_dict() for candidate in candidates],
+            ensure_ascii=False,
+            indent=2,
+        )
+        response_schema = self._candidate_selection_schema(candidates)
 
         messages = [
             {"role": "system", "content": config.ACTION_PLAN_SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": (
-                    f"ACTION CATALOG:\n{catalog_text}\n\n"
-                    "For each action, use only its listed allowed_fields. "
-                    "Use the exact required_fields and target types; omit every "
-                    "field not listed for that action.\n\n"
+                    f"COMPLETE ACTION CANDIDATES:\n{candidates_text}\n\n"
                     f"RETRIEVED CONTEXT (use only if directly relevant):\n{context}\n\n"
                     f"AUTHORITATIVE INCIDENT:\n{question}\n\n"
+                    "Select candidate IDs only. Do not create actions or edit "
+                    "candidate parameters.\n\n"
                     f"OUTPUT SCHEMA:\n"
                     f"{json.dumps(response_schema, ensure_ascii=False)}"
                 ),
@@ -248,9 +276,7 @@ class ActionPlannerAgent:
                 failure_stage = "plan_validation"
                 parsing_start = time.perf_counter()
                 try:
-                    plan = self._parse_action_plan(content, incident=incident)
-                    parsing_ms += (time.perf_counter() - parsing_start) * 1000
-                    break
+                    selection = self._parse_candidate_selection(content, candidates)
                 except ValueError as exc:
                     parsing_ms += (time.perf_counter() - parsing_start) * 1000
                     if attempt == 1:
@@ -260,16 +286,31 @@ class ActionPlannerAgent:
                         {
                             "role": "user",
                             "content": (
-                                f"The action plan was rejected: {exc}. Return a corrected "
-                                "complete JSON plan. Follow each action's allowed_fields, "
-                                "required_fields, target_type, and field_types exactly. "
-                                "Use only target values present in the raw alert; do not "
-                                "invent or substitute values. If a required value is "
-                                "unavailable, use notify_analyst without target or "
-                                "other action parameters."
+                                f"The candidate selection was rejected: {exc}. Return "
+                                "a corrected JSON object selecting only IDs from the "
+                                "complete action candidates. Do not create or edit "
+                                "action parameters."
                             ),
                         },
                     ])
+                    continue
+                parsing_ms += (time.perf_counter() - parsing_start) * 1000
+                break
+
+            plan = {
+                "summary": selection["summary"],
+                "actions": [
+                    dict(candidates_by_id[candidate_id].action)
+                    for candidate_id in selection["selected_candidate_ids"]
+                ],
+            }
+            failure_stage = "plan_validation"
+            parsing_start = time.perf_counter()
+            plan = self._parse_action_plan(
+                json.dumps(plan, ensure_ascii=False),
+                incident=incident,
+            )
+            parsing_ms += (time.perf_counter() - parsing_start) * 1000
         except Exception as exc:
             fallback_used = True
             if failure_stage == "llm_request":
@@ -319,6 +360,7 @@ class ActionPlannerAgent:
                 "context_length": len(context),
                 "incident_length": len(question),
                 "response_chars": response_content_length,
+                "candidate_count": len(candidates),
                 "actions_count": len(plan.get("actions", [])),
                 "fallback_used": fallback_used,
                 "fallback_reason": fallback_reason

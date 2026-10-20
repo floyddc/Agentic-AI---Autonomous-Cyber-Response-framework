@@ -127,7 +127,9 @@ Nel JSON restituito verificare:
 
 - `validation.approved_actions` contenente almeno un'azione approvata.
 
-Il modello puo' proporre azioni diverse in base al contesto. Se propone un'azione non presente nel catalogo, oppure nessuna azione, il risultato atteso e' `status: "failed"` con `phase: "validation"`: questo indica un rifiuto corretto della policy, non un errore del database.
+Il planner normalizza le evidenze delle sorgenti supportate (ad esempio SentinelOne e Microsoft Defender) e costruisce candidate complete usando il catalogo. Il modello seleziona solo gli ID delle candidate: non puo' inventare o modificare `target` ed `endpoint`. Se un alert non contiene un identificativo endpoint attendibile, non viene proposta un'azione che lo richiede; il fallback e' la notifica all'analista. Il payload originale resta disponibile per audit e validazione.
+
+Il validator resta il controllo finale. `status: "failed"` con `phase: "validation"` indica un rifiuto corretto della policy, non un errore del database; `status: "awaiting_human_approval"` indica invece che il piano richiede approvazione umana.
 
 ## Controllare metriche e log
 

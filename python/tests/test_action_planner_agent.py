@@ -39,7 +39,7 @@ class ActionPlannerAgentTests(unittest.TestCase):
         self.assertIn("model=test-model", log_output)
         self.assertIn("stage=plan_validation", log_output)
         self.assertIn("reason=invalid_action_plan", log_output)
-        self.assertIn("received keys=['summary']", log_output)
+        self.assertIn("Candidate selection must contain only", log_output)
         self.assertNotIn("sensitive response text", log_output)
         logging_agent.record.assert_called_once()
         metrics = logging_agent.record.call_args.kwargs
@@ -112,7 +112,7 @@ class ActionPlannerAgentTests(unittest.TestCase):
             )
 
     @patch("MAPE.action_planner_agent.logging_agent")
-    def test_invalid_action_fields_are_retried_with_catalog_feedback(self, logging_agent):
+    def test_unknown_candidate_ids_are_retried_with_catalog_feedback(self, logging_agent):
         agent = object.__new__(ActionPlannerAgent)
         agent.model = "test-model"
         agent.client = MagicMock()
@@ -120,18 +120,14 @@ class ActionPlannerAgentTests(unittest.TestCase):
             {
                 "message": {
                     "content": (
-                        '{"summary":"Block indicator","actions":[{"action":"block_ip",'
-                        '"target":"209.97.189.32","endpoint":"srvprobe",'
-                        '"justification":"Block the IP from the alert."}]}'
+                        '{"summary":"Block indicator","selected_candidate_ids":["C99"]}'
                     )
                 }
             },
             {
                 "message": {
                     "content": (
-                        '{"summary":"Block indicator","actions":[{"action":"block_ip",'
-                        '"target":"209.97.189.32",'
-                        '"justification":"Block the IP from the alert."}]}'
+                        '{"summary":"Block indicator","selected_candidate_ids":["C01"]}'
                     )
                 }
             },
@@ -148,22 +144,43 @@ class ActionPlannerAgentTests(unittest.TestCase):
                 }
             ]
         }
+        agent.actions_catalog["actions"].append(
+            {
+                "action": "notify_analyst",
+                "description": "Escalate to an analyst",
+                "required_fields": [],
+            }
+        )
         agent.actions_by_name = {
-            "block_ip": agent.actions_catalog["actions"][0]
+            action["action"]: action for action in agent.actions_catalog["actions"]
         }
         agent.allowed_actions = set(agent.actions_by_name)
 
         plan = agent.propose_action_plan(
-            {"source": "edr", "raw_payload": {"ip": "209.97.189.32"}},
+            {
+                "source": "edr",
+                "raw_payload": {
+                    "alert_iocs": [
+                        {
+                            "ioc_value": "209.97.189.32",
+                            "ioc_tags": "malicious,c2",
+                        }
+                    ]
+                },
+            },
             "",
             incident_id=9,
         )
 
         self.assertEqual(plan["actions"][0]["target"], "209.97.189.32")
         self.assertEqual(agent.client.chat.call_count, 2)
+        retry_messages = "\n".join(
+            message["content"]
+            for message in agent.client.chat.call_args.kwargs["messages"]
+        )
         retry_prompt = agent.client.chat.call_args.kwargs["messages"][-1]["content"]
-        self.assertIn("unsupported fields", retry_prompt)
-        self.assertIn("allowed_fields", retry_prompt)
+        self.assertIn("Unknown candidate IDs", retry_prompt)
+        self.assertIn('"id": "C01"', retry_messages)
         logging_agent.record.assert_called_once()
         self.assertEqual(logging_agent.record.call_args.kwargs["status"], "success")
 
@@ -192,9 +209,8 @@ class ActionPlannerAgentTests(unittest.TestCase):
         agent.client.chat.return_value = {
             "message": {
                 "content": (
-                    '{"summary":"Review endpoint","actions":['
-                    '{"action":"isolate_host","target":"host-1",'
-                    '"justification":"Contain the endpoint."}]}'
+                    '{"summary":"Block phishing URL",'
+                    '"selected_candidate_ids":["C01","C02"]}'
                 )
             }
         }
@@ -202,30 +218,60 @@ class ActionPlannerAgentTests(unittest.TestCase):
         agent.actions_catalog = {
             "actions": [
                 {
-                    "action": "isolate_host",
-                    "description": "Isolate an endpoint",
+                    "action": "block_url",
+                    "description": "Block access to a malicious URL",
                     "required_fields": ["target"],
+                    "target_type": "url",
+                },
+                {
+                    "action": "notify_analyst",
+                    "description": "Escalate to an analyst",
+                    "required_fields": [],
                 }
             ]
         }
         agent.actions_by_name = {
-            "isolate_host": agent.actions_catalog["actions"][0]
+            action["action"]: action for action in agent.actions_catalog["actions"]
         }
         agent.allowed_actions = set(agent.actions_by_name)
 
         plan = agent.propose_action_plan(
-            {"source": "edr", "raw_payload": {"host": "host-1"}},
+            {
+                "source": "email",
+                "raw_payload": {
+                    "alert_source": "Microsoft Defender for Office365",
+                    "alert_iocs": [
+                        {
+                            "ioc_value": "https://example.invalid/path",
+                            "ioc_tags": "phishing,url,c2",
+                        }
+                    ],
+                },
+            },
             "unique-context-marker",
             incident_id=7,
         )
 
-        self.assertEqual(plan["actions"][0]["target"], "host-1")
+        self.assertEqual(
+            [action["action"] for action in plan["actions"]],
+            ["block_url", "notify_analyst"],
+        )
+        self.assertEqual(
+            plan["actions"][0]["target"],
+            "https://example.invalid/path",
+        )
         call = agent.client.chat.call_args.kwargs
         self.assertEqual(call["options"], {"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS})
         self.assertIs(call["think"], False)
-        self.assertEqual(call["format"]["required"], ["summary", "actions"])
+        self.assertEqual(
+            call["format"]["required"],
+            ["summary", "selected_candidate_ids"],
+        )
+        self.assertEqual(call["format"]["properties"]["selected_candidate_ids"]["items"]["enum"], ["C01", "C02"])
         prompt = "\n".join(message["content"] for message in call["messages"])
         self.assertEqual(prompt.count("unique-context-marker"), 1)
+        self.assertIn("Select candidate IDs only", prompt)
+        self.assertNotIn("ACTION CATALOG:", prompt)
         logging_agent.record.assert_called_once()
 
     @patch("MAPE.action_planner_agent.logging_agent")
