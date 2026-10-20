@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import config
 from MAPE.action_planner_agent import ActionPlannerAgent
 
 
@@ -116,7 +117,7 @@ class ActionPlannerAgentTests(unittest.TestCase):
 
         self.assertEqual(plan["actions"][0]["target"], "host-1")
         call = agent.client.chat.call_args.kwargs
-        self.assertEqual(call["options"], {"temperature": 0})
+        self.assertEqual(call["options"], {"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS})
         self.assertEqual(call["format"]["required"], ["summary", "actions"])
         prompt = "\n".join(message["content"] for message in call["messages"])
         self.assertEqual(prompt.count("unique-context-marker"), 1)

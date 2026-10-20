@@ -14,7 +14,7 @@ class TriageAgent:
 
     def __init__(self, model: str = config.TRIAGE_MODEL, host: str = config.OLLAMA_HOST, registry: Optional[IncidentRegistry] = None):
         self.model = model
-        self.client = Client(host=host)
+        self.client = Client(host=host, timeout=config.OLLAMA_TIMEOUT_SECONDS)
         self.registry = registry or IncidentRegistry()
 
     def _heuristic_severity(self, raw_payload: Dict[str, Any]) -> str:
@@ -66,7 +66,7 @@ class TriageAgent:
                 messages=messages,
                 format=config.TRIAGE_RESPONSE_SCHEMA,
                 think=False,
-                options={"temperature": 0},
+                options={"temperature": 0, "num_predict": config.TRIAGE_MAX_TOKENS},
                 keep_alive=-1,
             )
             content = response["message"]["content"]

@@ -94,9 +94,12 @@ Il sistema RAG vive in `RAG/` e legge/scrive dati sotto `knowledge/` (montato ne
      - Poi sintassi SQL, es:
        - Eliminare record delle metriche, azzerando il contatore degli id: `TRUNCATE TABLE agent_metrics RESTART IDENTITY;`
 
-**3. Costruire/aggiornare indice vettoriale** (persistito in `knowledge/indices/`):
+**3. Costruire/aggiornare indice vettoriale (primo avvio)** (persistito in `knowledge/indices/`):
+ 
+  - `docker compose run --rm --no-deps python python -m RAG.build_index --reset`
 
-  - `docker exec -it python-app python -m RAG.build_index`
+  - **Avvii successivi:**
+    - `docker exec -it python-app python -m RAG.build_index`
 
 Se il worker di retrieval fallisce con `chromadb.errors.InternalError: Error finding id`, ricostruire l'indice prima di riprovare. Fermare prima l'applicazione per evitare query durante il reset:
 

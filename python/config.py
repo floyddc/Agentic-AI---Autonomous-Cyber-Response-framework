@@ -23,6 +23,7 @@ CACHE_DIR = "/root/.cache/huggingface"
 # PIPELINE & OLLAMA SETUP ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 WARMUP_ON = True                        # change it if you don't wanna warmup the pipeline
 OLLAMA_HOST = "http://host.docker.internal:11434"
+OLLAMA_TIMEOUT_SECONDS = 90             # without it a stuck generation blocks the worker forever (the heartbeat keeps its lease alive)
 API_HOST = "0.0.0.0"
 API_PORT = 8000
 
@@ -33,11 +34,14 @@ TOP_K = 5
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L2-v2"
 RERANK_CANDIDATES = 20          # wide pool: duplicates per technique are collapsed after reranking
 RERANK_MIN_SCORE = 0.0          # raw cross-encoder logit; weaker hits are dropped (the best hit is always kept)
+RERANK_SCORE_MARGIN = 2.0       # also drop hits scoring more than this below the best one
+CONTEXT_EXPAND_TOP = 1          # the best N hits are extended with the next chunk of the same document (detection/mitigation text)
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
 # TRIAGER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 VALID_SEVERITIES = ("low", "medium", "high", "critical")
 TRIAGE_MODEL = "qwen3:0.6b"     # "qwen3:4b"
+TRIAGE_MAX_TOKENS = 400         # caps runaway generations under schema-constrained output
 TRIAGE_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -69,7 +73,8 @@ TRIAGE_SYSTEM_PROMPT = (
 
 # PLANNER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
 PLAN_MODEL = "qwen3:4b-instruct"    # GPU "qwen3:8b"
-ACTION_PLAN_CONTEXT_CHARS = 4500
+ACTION_PLAN_CONTEXT_CHARS = 6000
+ACTION_PLAN_MAX_TOKENS = 800
 MAX_ACTIONS_PER_PLAN = 3
 ACTION_PLAN_SYSTEM_PROMPT = (
     "You are a defensive incident-response planning agent. The raw incident "

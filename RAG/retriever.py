@@ -1,11 +1,14 @@
+import logging
 import re
 import time
 from typing import Any, Dict, List, Optional
 import config
 from .embeddings import embed_query
 from .reranker import rerank
-from .text_cleaner import clean_retrieval_text
+from .text_cleaner import clean_retrieval_text, split_sentences
 from .vector_store import get_collection
+
+logger = logging.getLogger(__name__)
 
 _TECHNIQUE_ID = re.compile(r"(?<![A-Za-z0-9])[Tt](\d{4})(?:[._](\d{3}))?(?!\d)")
 
@@ -20,9 +23,17 @@ def _diversity_key(hit: dict) -> str:
     return f"T{match.group(1)}" + (f".{match.group(2)}" if match.group(2) else "")
 
 
-def select_hits(reranked_hits: List[dict], top_k: int, min_score: Optional[float] = None) -> List[dict]:
-    """Keep the best hit per technique/source, drop weak ones, and cap at top_k."""
+def select_hits(
+    reranked_hits: List[dict],
+    top_k: int,
+    min_score: Optional[float] = None,
+    margin: Optional[float] = None,
+) -> List[dict]:
+    """Keep the best hit per technique/source, drop weak ones, and cap at top_k.
+
+    A hit is weak when its score is below min_score or more than `margin` below the best hit."""
     min_score = config.RERANK_MIN_SCORE if min_score is None else min_score
+    margin = config.RERANK_SCORE_MARGIN if margin is None else margin
     selected: List[dict] = []
     seen = set()
     for hit in reranked_hits:
@@ -30,13 +41,47 @@ def select_hits(reranked_hits: List[dict], top_k: int, min_score: Optional[float
         if key in seen:
             continue
         score = hit.get("rerank_score")
-        if selected and score is not None and score < min_score:
-            break
+        if selected and score is not None:
+            best = selected[0].get("rerank_score")
+            if score < min_score or (best is not None and score < best - margin):
+                break
         seen.add(key)
         selected.append(hit)
         if len(selected) >= top_k:
             break
     return selected
+
+
+def merge_chunks(current: str, following: str, title: Optional[str] = None) -> str:
+    """Append the next chunk to the current one, dropping the title prefix and the sentences shared by the overlap."""
+    if title and following.startswith(f"{title}: "):
+        following = following[len(title) + 2:]
+    current_sentences = split_sentences(current)
+    following_sentences = split_sentences(following)
+    for shared in range(min(len(current_sentences), len(following_sentences)), 0, -1):
+        if current_sentences[-shared:] == following_sentences[:shared]:
+            following_sentences = following_sentences[shared:]
+            break
+    return " ".join([current, *following_sentences]).strip()
+
+
+def expand_hits(collection, hits: List[dict], count: int) -> None:
+    """Extend the best hits with the following chunk of the same document, in place."""
+    for hit in hits[:count]:
+        metadata = hit["metadata"]
+        index = metadata.get("chunk_index")
+        source = metadata.get("source")
+        if not isinstance(index, int) or isinstance(index, bool) or not source:
+            continue
+        try:
+            found = collection.get(ids=[f"{source}::{index + 1}"], include=["documents"])
+            documents = found.get("documents") or []
+        except Exception:
+            logger.warning("Could not load the chunk following %s::%s", source, index, exc_info=True)
+            continue
+        if documents:
+            hit["text"] = merge_chunks(hit["text"], clean_retrieval_text(documents[0]), metadata.get("title"))
+
 
 def retrieve(
     query: str,
@@ -129,6 +174,7 @@ def retrieve(
         }
         for rank, hit in enumerate(ranked_hits, start=1)
     ]
+    expand_hits(collection, ranked_hits, config.CONTEXT_EXPAND_TOP)
 
     # total retrieval time
     total_ms = (time.perf_counter() - total_start) * 1000

@@ -14,7 +14,7 @@ class ActionPlannerAgent:
 
     def __init__(self, model: str = config.PLAN_MODEL, host: str = config.OLLAMA_HOST, registry: IncidentRegistry = None):
         self.model = model
-        self.client = Client(host=host)
+        self.client = Client(host=host, timeout=config.OLLAMA_TIMEOUT_SECONDS)
         self.registry = registry or IncidentRegistry()
         self.actions_catalog = self._load_actions_catalog()
         self.actions_by_name = {
@@ -182,7 +182,7 @@ class ActionPlannerAgent:
                 model=self.model,
                 messages=messages,
                 format=response_schema,
-                options={"temperature": 0},
+                options={"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS},
                 keep_alive=-1,
             )
             llm_ms = (time.perf_counter() - llm_start) * 1000

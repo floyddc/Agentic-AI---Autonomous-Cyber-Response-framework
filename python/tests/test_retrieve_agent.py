@@ -70,10 +70,34 @@ class RetrieveAgentTests(unittest.TestCase):
         }, semantic=True)
 
         self.assertIn("alert_title: Suspicious email with malicious attachment", query)
-        self.assertIn("file: invoice.docm", query)
+        self.assertIn("file: macro-enabled Office document", query)
         self.assertIn("ioc_description: Malicious macro-enabled document", query)
         self.assertIn("ioc_tags: phishing,macro", query)
         for noise in ("srvprobe", "013dcf46", "209.97.189.32", "secure-invoice-support.com", "manual"):
+            self.assertNotIn(noise, query)
+
+    def test_semantic_query_describes_downloaded_executable_without_random_file_name(self):
+        agent = RetrieveAgent(registry=MagicMock())
+
+        query = agent._incident_to_query({
+            "customer_id": 1,
+            "raw_payload": {
+                "alert_title": "Cst00 Detection",
+                "alert_context": {
+                    "description": "Sentinel One event: Threat with confidence level suspicious detected: 4k-video-downloader_R-jPBn1.exe",
+                    "generic_full_log": (
+                        "Threat with confidence level malicious detected. File: 4k-video-downloader_R-jPBn1.exe. "
+                        "Path: C:\\Users\\luxval\\Downloads\\4k-video-downloader_R-jPBn1.exe. "
+                        "SHA1: 013dcf46786cbf27de49b22a4abd0435904b0a94. IP: 209.97.189.32."
+                    ),
+                },
+            },
+        }, semantic=True)
+
+        self.assertIn("log_message: Threat with confidence level malicious detected", query)
+        self.assertIn("file: executable", query)
+        self.assertIn("origin: downloaded by the user", query)
+        for noise in ("4k-video-downloader", "jPBn1", "luxval", "013dcf46", "209.97.189.32"):
             self.assertNotIn(noise, query)
 
     def test_incident_query_caps_length(self):

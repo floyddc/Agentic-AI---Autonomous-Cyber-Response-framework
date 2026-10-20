@@ -2,7 +2,8 @@ import json
 import unittest
 from unittest.mock import MagicMock
 
-from MAPE.triage_agent import TRIAGE_RESPONSE_SCHEMA, TriageAgent
+import config
+from MAPE.triage_agent import TriageAgent
 
 
 class TriageAgentTests(unittest.TestCase):
@@ -30,8 +31,8 @@ class TriageAgentTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
         call = self.agent.client.chat.call_args.kwargs
-        self.assertEqual(call["format"], TRIAGE_RESPONSE_SCHEMA)
-        self.assertEqual(call["options"], {"temperature": 0})
+        self.assertEqual(call["format"], config.TRIAGE_RESPONSE_SCHEMA)
+        self.assertEqual(call["options"], {"temperature": 0, "num_predict": config.TRIAGE_MAX_TOKENS})
         self.assertEqual(call["think"], False)
 
     def test_rejects_incomplete_triage_output(self):

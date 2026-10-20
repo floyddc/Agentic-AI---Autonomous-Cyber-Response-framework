@@ -52,6 +52,20 @@ _NON_SEMANTIC_LABELS = {
     "source", "severity", "alert_severity", "path", "file_path",
     "ioc", "ioc_type", "hash", "ip", "url", "email", "storyline", "site",
 }
+# random file names only add noise to embeddings; their type is what describes the threat
+_FILE_TYPES = {
+    "exe": "executable", "scr": "executable", "msi": "installer package", "dll": "DLL library",
+    "bat": "batch script", "cmd": "command script", "ps1": "PowerShell script", "vbs": "VBScript",
+    "js": "JavaScript file", "jar": "Java archive", "lnk": "shortcut file", "iso": "disk image",
+    "docm": "macro-enabled Office document", "xlsm": "macro-enabled Office spreadsheet",
+    "doc": "Office document", "docx": "Office document", "xls": "Office spreadsheet",
+    "xlsx": "Office spreadsheet", "pdf": "PDF document", "zip": "archive", "rar": "archive", "7z": "archive",
+}
+_FILE_NAME_PATTERN = re.compile(
+    r"(?<![\w.\-])[\w][\w.\-]*\.(?P<ext>" + "|".join(_FILE_TYPES) + r")\b", re.IGNORECASE
+)
+_DOWNLOADS_PATH_PATTERN = re.compile(r"[\\/]downloads[\\/]", re.IGNORECASE)
+_LOG_LABEL_PATTERN = re.compile(r"\b(?:file|path|process|image|sha1|sha256|sha512|ip|storyline|site)\s*:", re.IGNORECASE)
 _LOG_FIELDS = {"generic_full_log", "windows_full_log", "full_log", "raw_log"}
 _HASH_PATTERN = re.compile(r"\b(?:[a-f0-9]{128}|[a-f0-9]{64}|[a-f0-9]{40})\b", re.IGNORECASE)
 _IP_PATTERN = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
@@ -113,6 +127,8 @@ class RetrieveAgent:
                             else:
                                 add("ioc", item)
                     elif normalized_key in _LOG_FIELDS and isinstance(value, str):
+                        if semantic:
+                            add("log_message", _LOG_LABEL_PATTERN.split(value, maxsplit=1)[0])
                         for match in _LOG_VALUE_PATTERN.finditer(value):
                             add(match.group("label"), match.group("value"))
                         for pattern, label in (
@@ -131,6 +147,13 @@ class RetrieveAgent:
                         visit(item)
 
         visit(incident)
+        if semantic:
+            if _DOWNLOADS_PATH_PATTERN.search(json.dumps(incident, ensure_ascii=False, default=str)):
+                add("origin", "downloaded by the user")
+            parts = [
+                _FILE_NAME_PATTERN.sub(lambda m: _FILE_TYPES[m.group("ext").lower()], part)
+                for part in parts
+            ]
         query = "\n".join(parts)
         return query[:1600] if query else json.dumps(incident, ensure_ascii=False, default=str)
 

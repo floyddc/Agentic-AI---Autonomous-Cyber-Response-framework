@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 import config
 from .knowledge_store import IncidentHistoryStore, KnowledgeBaseStore
-from .text_cleaner import clean_retrieval_text
+from .text_cleaner import clean_retrieval_text, split_sentences
 
 
 @dataclass
@@ -67,18 +67,52 @@ def load_new_database_documents(
     return documents, knowledge_rows, history_rows
 
 
-def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE, overlap: int = config.CHUNK_OVERLAP) -> List[str]:
-
-    words = clean_retrieval_text(text).split()
-    if not words:
-        return []
-
+def _word_windows(text: str, chunk_size: int, overlap: int) -> List[str]:
+    words = text.split()
     step = max(chunk_size - overlap, 1)
-    chunks = []
+    windows = []
     for start in range(0, len(words), step):
-        chunks.append(" ".join(words[start:start + chunk_size]))
+        windows.append(" ".join(words[start:start + chunk_size]))
         if start + chunk_size >= len(words):
             break
+    return windows
+
+
+def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE, overlap: int = config.CHUNK_OVERLAP) -> List[str]:
+    """Split on sentence boundaries so chunks never end mid-sentence; consecutive
+    chunks share trailing sentences (up to `overlap` words). A sentence longer than
+    chunk_size falls back to plain word windows."""
+
+    chunks: List[str] = []
+    current: List[str] = []
+    count = 0
+
+    def flush() -> None:
+        if current:
+            chunks.append(" ".join(current))
+
+    for sentence in split_sentences(clean_retrieval_text(text)):
+        size = len(sentence.split())
+        if size > chunk_size:
+            flush()
+            current, count = [], 0
+            chunks.extend(_word_windows(sentence, chunk_size, overlap))
+            continue
+        if current and count + size > chunk_size:
+            flush()
+            carried: List[str] = []
+            carried_words = 0
+            for previous in reversed(current):
+                previous_size = len(previous.split())
+                if carried_words + previous_size > overlap or carried_words + previous_size + size > chunk_size:
+                    break
+                carried.insert(0, previous)
+                carried_words += previous_size
+            current, count = carried, carried_words
+        current.append(sentence)
+        count += size
+
+    flush()
     return chunks
 
 
@@ -106,6 +140,7 @@ def build_chunks(documents: List[SourceDocument]) -> List[dict]:
                 "source": doc.path,
                 "category": doc.category,
                 "chunk_index": i,
+                **({"title": title} if title else {}),
             }
             records.append({"id": f"{doc.path}::{i}", "text": chunk, "metadata": metadata})
             

@@ -21,6 +21,11 @@ _AUTHOR_YEAR_CITATION = re.compile(
 )
 
 
+def split_sentences(text: str) -> list:
+    normalized = " ".join(text.split())
+    return [s for s in re.split(r"(?<=[.!?])\s+", normalized) if s]
+
+
 def clean_retrieval_text(text: str) -> str:
     reference_section = _REFERENCE_SECTION.search(text)
     if reference_section:
