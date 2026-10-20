@@ -1,0 +1,29 @@
+{
+  "alert_title": "Suspicious email with malicious attachment",
+  "alert_description": "Microsoft Defender detected a phishing email containing attachment Invoice_2026-02-18.docm with macro-based malware",
+  "alert_source": "Microsoft Defender for Office365",
+  "alert_severity_id": 5,
+  "alert_status_id": 2,
+  "alert_customer_id": 1,
+  "alert_source_event_time": "2026-04-14T08:45:00Z",
+  "alert_iocs": [
+    {
+      "ioc_value": "Invoice_2026-02-18.docm",
+      "ioc_description": "Malicious macro-enabled document",
+      "ioc_type_id": 37,
+      "ioc_tags": "phishing,macro,document"
+    },
+    {
+      "ioc_value": "mail-update@secure-invoice-support.com",
+      "ioc_description": "Suspicious sender email address",
+      "ioc_type_id": 22,
+      "ioc_tags": "phishing,email"
+    },
+    {
+      "ioc_value": "https://secure-invoice-support.com/update",
+      "ioc_description": "Phishing landing page",
+      "ioc_type_id": 141,
+      "ioc_tags": "phishing,url,c2"
+    }
+  ]
+}

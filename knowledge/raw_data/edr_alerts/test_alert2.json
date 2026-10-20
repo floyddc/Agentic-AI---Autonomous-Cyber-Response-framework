@@ -1,0 +1,16 @@
+{
+  "alert": "Suspicious credential access detected",
+  "message": "A process attempted to access sensitive authentication data",
+  "command_line": "rundll32.exe C:\\Temp\\dbghelp.dll,MiniDump",
+  "indicators": [
+    "SHA256:4f8c2a9d7e1b6c3f5a0e9d8c7b6a5f4e3d2c1b0a9876543210fedcba98765432"
+  ],
+  "host": "workstation-017",
+  "user": "bob",
+  "alert_customer_id": 1,
+  "signature": "CredentialDumping.Generic",
+  "event_type": "process_activity",
+  "event_name": "SensitiveProcessMemoryAccess",
+  "process": "rundll32.exe",
+  "service": "Windows Event Log"
+}

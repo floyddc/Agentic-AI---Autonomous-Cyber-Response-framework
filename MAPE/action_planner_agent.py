@@ -59,7 +59,9 @@ class ActionPlannerAgent:
         actions = plan.get("actions")
 
         if not isinstance(actions, list):
-            raise ValueError("LLM action plan must contain an 'actions' list; received keys={list(plan.keys())}")
+            raise ValueError(
+                f"LLM action plan must contain an 'actions' list; received keys={list(plan.keys())}"
+            )
 
         for index, item in enumerate(actions):
             if not isinstance(item, dict):
@@ -83,6 +85,8 @@ class ActionPlannerAgent:
         fallback_reason = None
         llm_ms = 0.0
         parsing_ms = 0.0
+        response_content_length = None
+        failure_stage = "llm_request"
 
         prompt_incident = {
             field: incident.get(field)
@@ -123,19 +127,40 @@ class ActionPlannerAgent:
             response = self.client.chat(model=self.model, messages=messages, format="json", keep_alive=-1)
             llm_ms = (time.perf_counter() - llm_start) * 1000
 
-            # JSON parsing + validation
-            parsing_start = time.perf_counter()
+            failure_stage = "response_extraction"
             content = response["message"]["content"]
+            response_content_length = len(content) if isinstance(content, str) else None
+
+            # JSON parsing + validation
+            failure_stage = "plan_validation"
+            parsing_start = time.perf_counter()
             plan = self._parse_action_plan(content)
             parsing_ms = (time.perf_counter() - parsing_start) * 1000
 
-        except Exception:
+        except Exception as exc:
             fallback_used = True
-            fallback_reason = "json_parse_error"
-            logger.exception("Failed to obtain/parse action plan from LLM")
+            if failure_stage == "llm_request":
+                fallback_reason = "llm_request_error"
+            elif failure_stage == "response_extraction":
+                fallback_reason = "invalid_llm_response"
+            elif isinstance(exc.__cause__, json.JSONDecodeError):
+                fallback_reason = "invalid_json"
+            else:
+                fallback_reason = "invalid_action_plan"
+            logger.exception(
+                "Action plan fallback used: incident_id=%s model=%s stage=%s "
+                "reason=%s error_type=%s response_chars=%s error=%s",
+                incident_id,
+                self.model,
+                failure_stage,
+                fallback_reason,
+                type(exc).__name__,
+                response_content_length,
+                exc,
+            )
             plan = {
                 "summary": "LLM plan unavailable; escalate the alert for analyst review.",
-                "actions": [{"action": "notify_analyst", "justification": "Automatic planning failed because the LLM returned invalid JSON."}],
+                "actions": [{"action": "notify_analyst", "justification": "Automatic planning returned an invalid or incomplete response."}],
             }
 
         # total execution time
@@ -151,13 +176,14 @@ class ActionPlannerAgent:
         except Exception:
             logger.exception("Failed to log action_planner_agent action to the incident registry")
 
-        logging_agent.record("action_planner_agent", "propose_action_plan", status="success", duration_ms=total_ms, incident_id=incident_id,
+        logging_agent.record("action_planner_agent", "propose_action_plan", status="fallback" if fallback_used else "success", duration_ms=total_ms, incident_id=incident_id,
             details={
                 "model": self.model,
                 "llm_ms": llm_ms,
                 "parsing_ms": parsing_ms,
                 "context_length": len(context),
                 "incident_length": len(question),
+                "response_chars": response_content_length,
                 "actions_count": len(plan.get("actions", [])),
                 "fallback_used": fallback_used,
                 "fallback_reason": fallback_reason

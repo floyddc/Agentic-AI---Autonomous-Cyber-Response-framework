@@ -1,0 +1,18 @@
+{
+  "alert_title": "Cst00 Detection",
+  "alert_description": "High CYLOS detection",
+  "alert_source": "SentinelOne",
+  "alert_severity_id": 6,
+  "alert_status_id": 2,
+  "alert_customer_id": 1,
+  "alert_source_event_time": "2026-05-11T10:30:10Z",
+  "alert_context": {
+        "description": "Sentinel One event: Threat with confidence level suspicious detected: 4k-video-downloader_R-jPBn1.exe",
+        "agent": "srvprobe",
+        "tactic": "",
+        "technique": "",
+        "generic_full_log": "Threat with confidence level malicious detected. File: 4k-video-downloader_R-jPBn1.exe. Path: C:\\Users\\luxval\\Downloads\\4k-video-downloader_R-jPBn1.exe. SHA1: 013dcf46786cbf27de49b22a4abd0435904b0a94. IP: 209.97.189.32. Storyline: B9B004B8FAEF219D. Site: AZIENDA X",
+        "windows_full_log": ""
+    },
+  "alert_iocs": []
+}
