@@ -24,32 +24,52 @@ def _diversity_key(hit: dict) -> str:
 
 
 def select_hits(
-    reranked_hits: List[dict],
+    ranked_hits: List[dict],
     top_k: int,
     min_score: Optional[float] = None,
     margin: Optional[float] = None,
 ) -> List[dict]:
-    """Keep the best hit per technique/source, drop weak ones, and cap at top_k.
+    """Keep the best hit per technique/source and cap at top_k.
 
-    A hit is weak when its score is below min_score or more than `margin` below the best hit."""
+    Optional cut-offs on the raw rerank score (disabled by default, see config): hits below
+    min_score, or more than `margin` below the first hit, are dropped."""
     min_score = config.RERANK_MIN_SCORE if min_score is None else min_score
     margin = config.RERANK_SCORE_MARGIN if margin is None else margin
     selected: List[dict] = []
     seen = set()
-    for hit in reranked_hits:
+    for hit in ranked_hits:
         key = _diversity_key(hit)
         if key in seen:
             continue
         score = hit.get("rerank_score")
         if selected and score is not None:
             best = selected[0].get("rerank_score")
-            if score < min_score or (best is not None and score < best - margin):
+            if (min_score is not None and score < min_score) or (
+                margin is not None and best is not None and score < best - margin
+            ):
                 break
         seen.add(key)
         selected.append(hit)
         if len(selected) >= top_k:
             break
     return selected
+
+
+_RRF_K = 60
+
+
+def fuse_rankings(vector_hits: List[dict], reranked_hits: List[dict], rerank_weight: Optional[float] = None) -> List[dict]:
+    """Reciprocal rank fusion of the vector order and the cross-encoder order.
+
+    The cross-encoder is not tuned for security text and can push a relevant hit far down,
+    so its vote is weighted below the embedding ranking instead of overriding it."""
+    weight = config.RERANK_FUSION_WEIGHT if rerank_weight is None else rerank_weight
+    vector_rank = {hit["text"]: rank for rank, hit in enumerate(vector_hits, start=1)}
+    for rank, hit in enumerate(reranked_hits, start=1):
+        position = vector_rank.get(hit["text"], len(vector_hits) + 1)
+        hit["vector_rank"] = position
+        hit["fused_score"] = 1 / (_RRF_K + position) + weight / (_RRF_K + rank)
+    return sorted(reranked_hits, key=lambda hit: hit["fused_score"], reverse=True)
 
 
 def merge_chunks(current: str, following: str, title: Optional[str] = None) -> str:
@@ -164,13 +184,16 @@ def retrieve(
         }
         for rank, hit in enumerate(reranked_hits, start=1)
     ]
-    ranked_hits = select_hits(reranked_hits, top_k)
+    fused_hits = fuse_rankings(hits, reranked_hits)
+    ranked_hits = select_hits(fused_hits, top_k)
     selected_results = [
         {
             "rank": rank,
             "source": hit["metadata"].get("source"),
             "category": hit["metadata"].get("category"),
+            "vector_rank": hit.get("vector_rank"),
             "rerank_score": hit.get("rerank_score"),
+            "fused_score": hit.get("fused_score"),
         }
         for rank, hit in enumerate(ranked_hits, start=1)
     ]

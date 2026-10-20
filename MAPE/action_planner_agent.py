@@ -137,6 +137,7 @@ class ActionPlannerAgent:
         parsing_ms = 0.0
         response_content_length = None
         failure_stage = "llm_request"
+        truncated = False
 
         prompt_incident = {
             field: incident.get(field)
@@ -178,16 +179,19 @@ class ActionPlannerAgent:
         try:
             ## LLM inference
             llm_start = time.perf_counter()
+            # think=False: reasoning tokens would otherwise eat the num_predict budget and leave the content empty
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
                 format=response_schema,
+                think=False,
                 options={"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS},
                 keep_alive=-1,
             )
             llm_ms = (time.perf_counter() - llm_start) * 1000
 
             failure_stage = "response_extraction"
+            truncated = response.get("done_reason") == "length"
             content = response["message"]["content"]
             response_content_length = len(content) if isinstance(content, str) else None
 
@@ -201,6 +205,8 @@ class ActionPlannerAgent:
             fallback_used = True
             if failure_stage == "llm_request":
                 fallback_reason = "llm_request_error"
+            elif truncated:
+                fallback_reason = "llm_output_truncated"
             elif failure_stage == "response_extraction":
                 fallback_reason = "invalid_llm_response"
             elif isinstance(exc.__cause__, json.JSONDecodeError):

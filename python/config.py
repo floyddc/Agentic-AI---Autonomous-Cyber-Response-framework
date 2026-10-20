@@ -33,8 +33,9 @@ CHUNK_OVERLAP = 40
 TOP_K = 5
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L2-v2"
 RERANK_CANDIDATES = 20          # wide pool: duplicates per technique are collapsed after reranking
-RERANK_MIN_SCORE = 0.0          # raw cross-encoder logit; weaker hits are dropped (the best hit is always kept)
-RERANK_SCORE_MARGIN = 2.0       # also drop hits scoring more than this below the best one
+RERANK_MIN_SCORE = None         # optional cut-off on the raw cross-encoder logit; off because its scores are poorly calibrated on security text
+RERANK_SCORE_MARGIN = None      # optional: drop hits scoring more than this below the best rerank score
+RERANK_FUSION_WEIGHT = 1.0      # weight of the cross-encoder vote vs the embedding ranking in reciprocal rank fusion (1.0 = equal)
 CONTEXT_EXPAND_TOP = 1          # the best N hits are extended with the next chunk of the same document (detection/mitigation text)
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 

@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import config
-from RAG.retriever import expand_hits, merge_chunks, retrieve, select_hits
+from RAG.retriever import expand_hits, fuse_rankings, merge_chunks, retrieve, select_hits
 
 
 class RetrieverTests(unittest.TestCase):
@@ -67,6 +67,35 @@ class RetrieverTests(unittest.TestCase):
         embed_query.assert_called_once_with("alert query")
         rerank.assert_called_once_with("alert query", unittest.mock.ANY, top_k=2)
         self.assertEqual(metrics["selected_results"][0]["source"], "playbooks/endpoint.md")
+
+
+class FuseRankingsTests(unittest.TestCase):
+    @staticmethod
+    def _hit(name, score=0.0):
+        return {"text": name, "metadata": {"source": name}, "rerank_score": score}
+
+    def test_a_hit_ranked_first_by_the_embedding_is_not_overridden_by_a_single_reranker_vote(self):
+        vector = [self._hit(n) for n in ("rel", "n1", "n2", "n3", "n4", "n5", "n6", "up")]
+        reranked = [self._hit(n) for n in ("up", "n1", "rel", "n2", "n3", "n4", "n5", "n6")]
+
+        order = [h["text"] for h in fuse_rankings(vector, reranked, rerank_weight=1.0)]
+
+        self.assertLess(order.index("rel"), order.index("up"))
+
+    def test_agreement_between_both_rankings_wins(self):
+        vector = [self._hit(name) for name in ("a", "b", "c")]
+        reranked = [self._hit(name) for name in ("a", "c", "b")]
+
+        fused = fuse_rankings(vector, reranked, rerank_weight=1.0)
+
+        self.assertEqual(fused[0]["text"], "a")
+        self.assertEqual({h["text"]: h["vector_rank"] for h in fused}, {"a": 1, "b": 2, "c": 3})
+
+    def test_zero_weight_keeps_the_vector_order(self):
+        vector = [self._hit(name) for name in ("a", "b", "c")]
+        reranked = [self._hit(name) for name in ("c", "b", "a")]
+
+        self.assertEqual([h["text"] for h in fuse_rankings(vector, reranked, rerank_weight=0.0)], ["a", "b", "c"])
 
 
 class ExpandHitsTests(unittest.TestCase):

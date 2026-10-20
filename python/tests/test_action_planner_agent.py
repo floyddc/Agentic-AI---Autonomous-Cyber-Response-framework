@@ -118,10 +118,29 @@ class ActionPlannerAgentTests(unittest.TestCase):
         self.assertEqual(plan["actions"][0]["target"], "host-1")
         call = agent.client.chat.call_args.kwargs
         self.assertEqual(call["options"], {"temperature": 0, "num_predict": config.ACTION_PLAN_MAX_TOKENS})
+        self.assertIs(call["think"], False)
         self.assertEqual(call["format"]["required"], ["summary", "actions"])
         prompt = "\n".join(message["content"] for message in call["messages"])
         self.assertEqual(prompt.count("unique-context-marker"), 1)
         logging_agent.record.assert_called_once()
+
+    @patch("MAPE.action_planner_agent.logging_agent")
+    def test_output_cut_at_token_limit_is_reported_as_truncated_fallback(self, logging_agent):
+        agent = object.__new__(ActionPlannerAgent)
+        agent.model = "test-model"
+        agent.client = MagicMock()
+        agent.client.chat.return_value = {"message": {"content": ""}, "done_reason": "length"}
+        agent.registry = MagicMock()
+        agent.actions_catalog = {"actions": [{"action": "notify_analyst", "required_fields": []}]}
+        agent.actions_by_name = {"notify_analyst": agent.actions_catalog["actions"][0]}
+        agent.allowed_actions = set(agent.actions_by_name)
+
+        with self.assertLogs("MAPE.action_planner_agent", level="ERROR"):
+            plan = agent.propose_action_plan({"source": "edr"}, "", incident_id=8)
+
+        self.assertEqual(plan["actions"][0]["action"], "notify_analyst")
+        details = logging_agent.record.call_args.kwargs["details"]
+        self.assertEqual(details["fallback_reason"], "llm_output_truncated")
 
 
 if __name__ == "__main__":
