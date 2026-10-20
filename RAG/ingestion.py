@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List
 import config
@@ -81,12 +82,25 @@ def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE, overlap: int = co
     return chunks
 
 
+_TITLE_PATTERN = re.compile(r"^#\s*(?P<title>.+?)(?:\s+##\s|\s*\?(?:\s|$)|$)")
+
+
+def _document_title(text: str) -> str:
+    first_line = next((line.strip() for line in clean_retrieval_text(text).splitlines() if line.strip()), "")
+    match = _TITLE_PATTERN.match(first_line)
+    return match.group("title").strip()[:160] if match else ""
+
+
 def build_chunks(documents: List[SourceDocument]) -> List[dict]:
 
     records = []
     
     for doc in documents:
+        title = _document_title(doc.content)
         for i, chunk in enumerate(chunk_text(doc.content)):
+            # the first chunk already starts with the title; later ones would lose the technique they belong to
+            if i > 0 and title:
+                chunk = f"{title}: {chunk}"
             metadata = {
                 **doc.metadata,
                 "source": doc.path,

@@ -47,6 +47,11 @@ _QUERY_FIELDS = {
     "username",
 }
 _IOC_COLLECTION_FIELDS = {"alert_iocs", "iocs", "indicators"}
+_NON_SEMANTIC_LABELS = {
+    "agent", "host", "hostname", "endpoint", "device", "user", "username",
+    "source", "severity", "alert_severity", "path", "file_path",
+    "ioc", "ioc_type", "hash", "ip", "url", "email", "storyline", "site",
+}
 _LOG_FIELDS = {"generic_full_log", "windows_full_log", "full_log", "raw_log"}
 _HASH_PATTERN = re.compile(r"\b(?:[a-f0-9]{128}|[a-f0-9]{64}|[a-f0-9]{40})\b", re.IGNORECASE)
 _IP_PATTERN = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
@@ -66,7 +71,10 @@ class RetrieveAgent:
         self.logger = logger
         self.registry = registry or IncidentRegistry()
 
-    def _incident_to_query(self, incident: Any) -> str:
+    def _incident_to_query(self, incident: Any, semantic: bool = False) -> str:
+        """Build the retrieval query. With semantic=True, identifiers that carry no
+        technique meaning (hosts, hashes, IPs, URLs, emails, IOC values) are left out,
+        since they only add noise to the embedding and the cross-encoder."""
 
         if isinstance(incident, str): return incident
 
@@ -77,6 +85,8 @@ class RetrieveAgent:
 
         def add(label: str, value: Any, limit: int = 240) -> None:
             if isinstance(value, (dict, list)) or value is None:
+                return
+            if semantic and label.casefold() in _NON_SEMANTIC_LABELS:
                 return
             text = " ".join(str(value).split()).rstrip(".,;")
             if not text:
@@ -132,7 +142,7 @@ class RetrieveAgent:
         customer_id: Optional[int] = None,
     ) -> Dict[str, Any]:
 
-        q = self._incident_to_query(incident_or_query)
+        q = self._incident_to_query(incident_or_query, semantic=True)
         if isinstance(incident_or_query, dict):
             incident_customer_id = incident_or_query.get("customer_id")
             if customer_id is not None and customer_id != incident_customer_id:
@@ -173,6 +183,7 @@ class RetrieveAgent:
                     "context_length": (len(context) if context else 0),
                     "candidate_results": retrieval_metrics.get("candidate_results", []),
                     "reranked_results": retrieval_metrics.get("reranked_results", []),
+                    "selected_results": retrieval_metrics.get("selected_results", []),
                 },
             )
             return {"query": q, "context": context}

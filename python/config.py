@@ -27,11 +27,12 @@ API_HOST = "0.0.0.0"
 API_PORT = 8000
 
 # RERANKER & EMBEDDER (CPU MODELS) ----------------------------------------------------------------------------------------------------------------------------------------------------------     
-CHUNK_SIZE = 300
-CHUNK_OVERLAP = 50
+CHUNK_SIZE = 200                # words per chunk; keeps each chunk within the embedder token limit (reindex with --reset after changing)
+CHUNK_OVERLAP = 40
 TOP_K = 5
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L2-v2"
-RERANK_CANDIDATES = 10
+RERANK_CANDIDATES = 20          # wide pool: duplicates per technique are collapsed after reranking
+RERANK_MIN_SCORE = 0.0          # raw cross-encoder logit; weaker hits are dropped (the best hit is always kept)
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
 # TRIAGER (GPU MODEL) ----------------------------------------------------------------------------------------------------------------------------------------------------------     

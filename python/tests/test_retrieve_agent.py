@@ -46,6 +46,36 @@ class RetrieveAgentTests(unittest.TestCase):
         self.assertNotIn("Unrelated verbose log text", query)
         self.assertNotIn("should not enter the search query", query)
 
+    def test_semantic_query_excludes_identifiers_but_keeps_meaning(self):
+        agent = RetrieveAgent(registry=MagicMock())
+
+        query = agent._incident_to_query({
+            "source": "manual",
+            "raw_payload": {
+                "alert_title": "Suspicious email with malicious attachment",
+                "alert_context": {
+                    "agent": "srvprobe",
+                    "generic_full_log": (
+                        "Threat detected. File: invoice.docm. "
+                        "SHA1: 013dcf46786cbf27de49b22a4abd0435904b0a94. IP: 209.97.189.32. "
+                        "Site: AZIENDA X"
+                    ),
+                },
+                "alert_iocs": [{
+                    "ioc_value": "mail-update@secure-invoice-support.com",
+                    "ioc_description": "Malicious macro-enabled document",
+                    "ioc_tags": "phishing,macro",
+                }],
+            },
+        }, semantic=True)
+
+        self.assertIn("alert_title: Suspicious email with malicious attachment", query)
+        self.assertIn("file: invoice.docm", query)
+        self.assertIn("ioc_description: Malicious macro-enabled document", query)
+        self.assertIn("ioc_tags: phishing,macro", query)
+        for noise in ("srvprobe", "013dcf46", "209.97.189.32", "secure-invoice-support.com", "manual"):
+            self.assertNotIn(noise, query)
+
     def test_incident_query_caps_length(self):
         agent = RetrieveAgent(registry=MagicMock())
 

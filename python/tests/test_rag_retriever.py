@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from RAG.retriever import retrieve
+import config
+from RAG.retriever import retrieve, select_hits
 
 
 class RetrieverTests(unittest.TestCase):
@@ -48,7 +49,7 @@ class RetrieverTests(unittest.TestCase):
         )
 
         self.assertEqual(results, reranked_hits[:1])
-        self.assertEqual(metrics["candidate_k"], 10)
+        self.assertEqual(metrics["candidate_k"], min(config.RERANK_CANDIDATES, 12))
         self.assertEqual(metrics["candidate_results"][0]["source"], "mitre/T1234.md")
         self.assertEqual(metrics["candidate_results"][0]["rank"], 1)
         self.assertEqual(metrics["reranked_results"], [{
@@ -62,9 +63,38 @@ class RetrieverTests(unittest.TestCase):
             "category": "mitre_attack",
             "rerank_score": 0.32,
         }])
-        self.assertEqual(collection.query.call_args.kwargs["n_results"], 10)
+        self.assertEqual(collection.query.call_args.kwargs["n_results"], min(config.RERANK_CANDIDATES, 12))
         embed_query.assert_called_once_with("alert query")
         rerank.assert_called_once_with("alert query", unittest.mock.ANY, top_k=2)
+        self.assertEqual(metrics["selected_results"][0]["source"], "playbooks/endpoint.md")
+
+
+class SelectHitsTests(unittest.TestCase):
+    @staticmethod
+    def _hit(source, score, text="text"):
+        return {"text": text, "metadata": {"source": source}, "rerank_score": score}
+
+    def test_keeps_one_hit_per_technique_across_sources(self):
+        hits = [
+            self._hit("base/mitre_attack/hf_0463_what_is_the_technique_t1566_001_phishing_spearphishing_attac.md", 2.0),
+            self._hit("base/attack_patterns/T1566.001_Spearphishing_Attachment.md", 1.5),
+            self._hit("base/attack_patterns/T1221_Template_Injection.md", 1.0),
+        ]
+
+        selected = select_hits(hits, top_k=5, min_score=0.0)
+
+        self.assertEqual([h["rerank_score"] for h in selected], [2.0, 1.0])
+
+    def test_drops_weak_hits_but_always_keeps_the_best(self):
+        weak = [self._hit("a.md", -1.0), self._hit("b.md", -2.0)]
+        self.assertEqual(select_hits(weak, top_k=5, min_score=0.0), weak[:1])
+
+        mixed = [self._hit("a.md", 1.0), self._hit("b.md", -0.1), self._hit("c.md", 0.5)]
+        self.assertEqual(select_hits(mixed, top_k=5, min_score=0.0), mixed[:1])
+
+    def test_caps_at_top_k(self):
+        hits = [self._hit(f"{i}.md", 5.0 - i) for i in range(5)]
+        self.assertEqual(len(select_hits(hits, top_k=2, min_score=0.0)), 2)
 
 
 if __name__ == "__main__":
