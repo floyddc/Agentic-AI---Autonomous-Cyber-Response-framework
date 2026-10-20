@@ -49,8 +49,13 @@ _QUERY_FIELDS = {
 _IOC_COLLECTION_FIELDS = {"alert_iocs", "iocs", "indicators"}
 _NON_SEMANTIC_LABELS = {
     "agent", "host", "hostname", "endpoint", "device", "user", "username",
-    "source", "severity", "alert_severity", "path", "file_path",
+    "source", "alert_source", "product", "vendor", "severity", "alert_severity",
+    "path", "file_path",
     "ioc", "ioc_type", "hash", "ip", "url", "email", "storyline", "site",
+}
+_GENERIC_ALERT_TERMS = {
+    "alert", "detection", "detected", "event", "high", "incident", "level",
+    "security", "suspicious", "threat",
 }
 # random file names only add noise to embeddings; their type is what describes the threat
 _FILE_TYPES = {
@@ -105,6 +110,14 @@ class RetrieveAgent:
             text = " ".join(str(value).split()).rstrip(".,;")
             if not text:
                 return
+            if semantic and label.casefold() in {"alert_title", "title", "alert_description"}:
+                signal_terms = {
+                    token.casefold()
+                    for token in re.findall(r"[A-Za-z][A-Za-z0-9.+_-]*", text)
+                    if token.casefold() not in _GENERIC_ALERT_TERMS
+                }
+                if len(signal_terms) < 2:
+                    return
             text = text[:limit]
             entry = f"{label.casefold()}: {text}"
             if entry.casefold() not in seen:

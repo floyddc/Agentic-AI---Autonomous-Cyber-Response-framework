@@ -83,6 +83,8 @@ class RetrieveAgentTests(unittest.TestCase):
             "customer_id": 1,
             "raw_payload": {
                 "alert_title": "Cst00 Detection",
+                "alert_description": "High CYLOS detection",
+                "alert_source": "SentinelOne",
                 "alert_context": {
                     "description": "Sentinel One event: Threat with confidence level suspicious detected: 4k-video-downloader_R-jPBn1.exe",
                     "generic_full_log": (
@@ -97,7 +99,10 @@ class RetrieveAgentTests(unittest.TestCase):
         self.assertIn("log_message: Threat with confidence level malicious detected", query)
         self.assertIn("file: executable", query)
         self.assertIn("origin: downloaded by the user", query)
-        for noise in ("4k-video-downloader", "jPBn1", "luxval", "013dcf46", "209.97.189.32"):
+        for noise in (
+            "Cst00 Detection", "CYLOS", "SentinelOne", "4k-video-downloader",
+            "jPBn1", "luxval", "013dcf46", "209.97.189.32",
+        ):
             self.assertNotIn(noise, query)
 
     def test_incident_query_caps_length(self):

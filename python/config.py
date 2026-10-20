@@ -36,6 +36,7 @@ RERANK_CANDIDATES = 20          # wide pool: duplicates per technique are collap
 RERANK_MIN_SCORE = None         # optional cut-off on the raw cross-encoder logit; off because its scores are poorly calibrated on security text
 RERANK_SCORE_MARGIN = None      # optional: drop hits scoring more than this below the best rerank score
 RERANK_FUSION_WEIGHT = 1.0      # weight of the cross-encoder vote vs the embedding ranking in reciprocal rank fusion (1.0 = equal)
+LEXICAL_FUSION_WEIGHT = 1.5     # BM25 vote, useful for exact evidence words such as "PowerShell" and "downloaded"
 CONTEXT_EXPAND_TOP = 1          # the best N hits are extended with the next chunk of the same document (detection/mitigation text)
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 

@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import config
-from RAG.retriever import expand_hits, fuse_rankings, merge_chunks, retrieve, select_hits
+from RAG.retriever import expand_hits, fuse_rankings, lexical_rank, merge_chunks, retrieve, select_hits
 
 
 class RetrieverTests(unittest.TestCase):
@@ -48,7 +48,7 @@ class RetrieverTests(unittest.TestCase):
             metrics=metrics,
         )
 
-        self.assertEqual(results, reranked_hits[:1])
+        self.assertEqual(results, reranked_hits[1:])
         self.assertEqual(metrics["candidate_k"], min(config.RERANK_CANDIDATES, 12))
         self.assertEqual(metrics["candidate_results"][0]["source"], "mitre/T1234.md")
         self.assertEqual(metrics["candidate_results"][0]["rank"], 1)
@@ -57,16 +57,20 @@ class RetrieverTests(unittest.TestCase):
             "source": "playbooks/endpoint.md",
             "category": "procedures",
             "rerank_score": 0.91,
+            "lexical_rank": None,
+            "lexical_score": None,
         }, {
             "rank": 2,
             "source": "mitre/T1234.md",
             "category": "mitre_attack",
             "rerank_score": 0.32,
+            "lexical_rank": None,
+            "lexical_score": None,
         }])
         self.assertEqual(collection.query.call_args.kwargs["n_results"], min(config.RERANK_CANDIDATES, 12))
         embed_query.assert_called_once_with("alert query")
         rerank.assert_called_once_with("alert query", unittest.mock.ANY, top_k=2)
-        self.assertEqual(metrics["selected_results"][0]["source"], "playbooks/endpoint.md")
+        self.assertEqual(metrics["selected_results"][0]["source"], "mitre/T1234.md")
 
 
 class FuseRankingsTests(unittest.TestCase):
@@ -96,6 +100,26 @@ class FuseRankingsTests(unittest.TestCase):
         reranked = [self._hit(name) for name in ("c", "b", "a")]
 
         self.assertEqual([h["text"] for h in fuse_rankings(vector, reranked, rerank_weight=0.0)], ["a", "b", "c"])
+
+    def test_lexical_vote_can_promote_an_exact_evidence_match(self):
+        hits = [
+            {"text": "Collect certificate metadata and monitor trust providers.", "metadata": {"source": "trust.md"}},
+            {"text": "Antivirus can detect malicious files downloaded and executed on the user's computer.", "metadata": {"source": "execution.md"}},
+            {"text": "Compile source code after delivery using native utilities.", "metadata": {"source": "compile.md"}},
+        ]
+        ranked = lexical_rank("file executable downloaded user malicious", hits)
+        self.assertEqual(ranked[0]["metadata"]["source"], "execution.md")
+        self.assertLess(ranked[0]["lexical_rank"], ranked[1]["lexical_rank"])
+
+    def test_rank_fusion_uses_candidate_identity_not_document_text(self):
+        vector = [
+            {"text": "same body", "metadata": {"source": "doc.md", "chunk_index": 0}},
+            {"text": "same body", "metadata": {"source": "doc.md", "chunk_index": 1}},
+        ]
+        lexical = list(reversed(vector))
+        reranked = list(reversed(vector))
+        fused = fuse_rankings(vector, reranked, lexical, rerank_weight=0.0, lexical_weight=2.0)
+        self.assertEqual(fused[0]["metadata"]["chunk_index"], 1)
 
 
 class ExpandHitsTests(unittest.TestCase):

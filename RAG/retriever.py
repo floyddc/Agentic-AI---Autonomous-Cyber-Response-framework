@@ -1,6 +1,8 @@
 import logging
+import math
 import re
 import time
+from collections import Counter
 from typing import Any, Dict, List, Optional
 import config
 from .embeddings import embed_query
@@ -11,6 +13,14 @@ from .vector_store import get_collection
 logger = logging.getLogger(__name__)
 
 _TECHNIQUE_ID = re.compile(r"(?<![A-Za-z0-9])[Tt](\d{4})(?:[._](\d{3}))?(?!\d)")
+_TOKEN = re.compile(r"[a-z0-9]+")
+_LEXICAL_STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "by", "detected", "detection",
+    "for", "from", "high", "in", "is", "of", "on", "or", "the", "to",
+    "with", "alert", "incident", "threat", "suspicious", "malicious",
+    "source", "description", "title", "file", "origin", "log", "message",
+    "security", "event", "user",
+}
 
 
 def _diversity_key(hit: dict) -> str:
@@ -21,6 +31,59 @@ def _diversity_key(hit: dict) -> str:
     if not match:
         return source
     return f"T{match.group(1)}" + (f".{match.group(2)}" if match.group(2) else "")
+
+
+def _hit_key(hit: dict) -> str:
+    metadata = hit["metadata"]
+    source = metadata.get("source")
+    chunk_index = metadata.get("chunk_index")
+    if source is not None and chunk_index is not None:
+        return f"{source}::{chunk_index}"
+    return hit["text"]
+
+
+def lexical_rank(query: str, hits: List[dict]) -> List[dict]:
+    """Rank the vector candidates with BM25 over informative query terms."""
+    query_terms = [
+        token for token in _TOKEN.findall(query.casefold())
+        if token not in _LEXICAL_STOP_WORDS and len(token) > 1
+    ]
+    if not query_terms or not hits:
+        return list(hits)
+
+    documents = [
+        [
+            token for token in _TOKEN.findall(hit["text"].casefold())
+            if token not in _LEXICAL_STOP_WORDS and len(token) > 1
+        ]
+        for hit in hits
+    ]
+    document_frequency = Counter(
+        token for token in set(term for term in query_terms)
+        for document in documents if token in document
+    )
+    total_documents = len(documents)
+    average_length = sum(map(len, documents)) / max(total_documents, 1)
+    scores = []
+    for original_rank, (hit, terms) in enumerate(zip(hits, documents)):
+        frequencies = Counter(terms)
+        score = 0.0
+        for token in query_terms:
+            frequency = frequencies[token]
+            if not frequency:
+                continue
+            df = document_frequency[token]
+            inverse_frequency = math.log(1 + (total_documents - df + 0.5) / (df + 0.5))
+            denominator = frequency + 1.2 * (
+                1 - 0.75 + 0.75 * len(terms) / max(average_length, 1)
+            )
+            score += inverse_frequency * frequency * 2.2 / denominator
+        scores.append((score, original_rank, hit))
+    scores.sort(key=lambda item: (-item[0], item[1]))
+    for rank, (score, _, hit) in enumerate(scores, start=1):
+        hit["lexical_score"] = score
+        hit["lexical_rank"] = rank
+    return [hit for _, _, hit in scores]
 
 
 def select_hits(
@@ -58,17 +121,34 @@ def select_hits(
 _RRF_K = 60
 
 
-def fuse_rankings(vector_hits: List[dict], reranked_hits: List[dict], rerank_weight: Optional[float] = None) -> List[dict]:
-    """Reciprocal rank fusion of the vector order and the cross-encoder order.
+def fuse_rankings(
+    vector_hits: List[dict],
+    reranked_hits: List[dict],
+    lexical_hits: Optional[List[dict]] = None,
+    rerank_weight: Optional[float] = None,
+    lexical_weight: Optional[float] = None,
+) -> List[dict]:
+    """Fuse embedding, BM25, and cross-encoder rankings with reciprocal rank fusion.
 
     The cross-encoder is not tuned for security text and can push a relevant hit far down,
-    so its vote is weighted below the embedding ranking instead of overriding it."""
-    weight = config.RERANK_FUSION_WEIGHT if rerank_weight is None else rerank_weight
-    vector_rank = {hit["text"]: rank for rank, hit in enumerate(vector_hits, start=1)}
+    so no single ranking can override the others."""
+    rerank_weight = config.RERANK_FUSION_WEIGHT if rerank_weight is None else rerank_weight
+    lexical_weight = config.LEXICAL_FUSION_WEIGHT if lexical_weight is None else lexical_weight
+    vector_rank = {_hit_key(hit): rank for rank, hit in enumerate(vector_hits, start=1)}
+    lexical_rank_by_hit = {
+        _hit_key(hit): rank for rank, hit in enumerate(lexical_hits or [], start=1)
+    }
     for rank, hit in enumerate(reranked_hits, start=1):
-        position = vector_rank.get(hit["text"], len(vector_hits) + 1)
+        key = _hit_key(hit)
+        position = vector_rank.get(key, len(vector_hits) + 1)
+        lexical_position = lexical_rank_by_hit.get(key, len(vector_hits) + 1)
         hit["vector_rank"] = position
-        hit["fused_score"] = 1 / (_RRF_K + position) + weight / (_RRF_K + rank)
+        hit["lexical_rank"] = lexical_position
+        hit["fused_score"] = (
+            1 / (_RRF_K + position)
+            + rerank_weight / (_RRF_K + rank)
+            + lexical_weight / (_RRF_K + lexical_position)
+        )
     return sorted(reranked_hits, key=lambda hit: hit["fused_score"], reverse=True)
 
 
@@ -175,16 +255,19 @@ def retrieve(
     start = time.perf_counter()
     reranked_hits = rerank(query, hits, top_k=len(hits))
     rerank_ms = (time.perf_counter() - start) * 1000
+    lexical_hits = lexical_rank(query, hits)
     reranked_results = [
         {
             "rank": rank,
             "source": hit["metadata"].get("source"),
             "category": hit["metadata"].get("category"),
             "rerank_score": hit.get("rerank_score"),
+            "lexical_rank": hit.get("lexical_rank"),
+            "lexical_score": hit.get("lexical_score"),
         }
         for rank, hit in enumerate(reranked_hits, start=1)
     ]
-    fused_hits = fuse_rankings(hits, reranked_hits)
+    fused_hits = fuse_rankings(hits, reranked_hits, lexical_hits)
     ranked_hits = select_hits(fused_hits, top_k)
     selected_results = [
         {
@@ -192,6 +275,7 @@ def retrieve(
             "source": hit["metadata"].get("source"),
             "category": hit["metadata"].get("category"),
             "vector_rank": hit.get("vector_rank"),
+            "lexical_rank": hit.get("lexical_rank"),
             "rerank_score": hit.get("rerank_score"),
             "fused_score": hit.get("fused_score"),
         }
