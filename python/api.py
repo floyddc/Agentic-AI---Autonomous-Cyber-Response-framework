@@ -1,11 +1,11 @@
 import json
+import config
 import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Protocol
 from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
-MAX_REQUEST_BYTES = 1_048_576
 
 
 class IncidentStore(Protocol):
@@ -87,7 +87,7 @@ def create_server(registry: IncidentStore, host: str, port: int) -> ThreadingHTT
             if length < 0:
                 self._send_json(411, {"error": "Content-Length is required"})
                 return
-            if length > MAX_REQUEST_BYTES:
+            if length > config.MAX_REQUEST_BYTES:
                 self._send_json(413, {"error": "Request body is too large"})
                 return
 

@@ -12,76 +12,6 @@ from .logging_agent import logging_agent
 
 logger = logging.getLogger(__name__)
 
-_QUERY_FIELDS = {
-    "alert_title",
-    "title",
-    "alert",
-    "detection_name",
-    "rule_name",
-    "alert_source",
-    "source",
-    "product",
-    "vendor",
-    "alert_description",
-    "description",
-    "message",
-    "event_type",
-    "severity",
-    "alert_severity",
-    "tactic",
-    "technique",
-    "host",
-    "hostname",
-    "endpoint",
-    "agent",
-    "device",
-    "file",
-    "file_name",
-    "filename",
-    "file_path",
-    "path",
-    "process",
-    "process_name",
-    "command_line",
-    "user",
-    "username",
-}
-_IOC_COLLECTION_FIELDS = {"alert_iocs", "iocs", "indicators"}
-_NON_SEMANTIC_LABELS = {
-    "agent", "host", "hostname", "endpoint", "device", "user", "username",
-    "source", "alert_source", "product", "vendor", "severity", "alert_severity",
-    "path", "file_path",
-    "ioc", "ioc_type", "hash", "ip", "url", "email", "storyline", "site",
-}
-_GENERIC_ALERT_TERMS = {
-    "alert", "detection", "detected", "event", "high", "incident", "level",
-    "security", "suspicious", "threat",
-}
-# random file names only add noise to embeddings; their type is what describes the threat
-_FILE_TYPES = {
-    "exe": "executable", "scr": "executable", "msi": "installer package", "dll": "DLL library",
-    "bat": "batch script", "cmd": "command script", "ps1": "PowerShell script", "vbs": "VBScript",
-    "js": "JavaScript file", "jar": "Java archive", "lnk": "shortcut file", "iso": "disk image",
-    "docm": "macro-enabled Office document", "xlsm": "macro-enabled Office spreadsheet",
-    "doc": "Office document", "docx": "Office document", "xls": "Office spreadsheet",
-    "xlsx": "Office spreadsheet", "pdf": "PDF document", "zip": "archive", "rar": "archive", "7z": "archive",
-}
-_FILE_NAME_PATTERN = re.compile(
-    r"(?<![\w.\-])[\w][\w.\-]*\.(?P<ext>" + "|".join(_FILE_TYPES) + r")\b", re.IGNORECASE
-)
-_DOWNLOADS_PATH_PATTERN = re.compile(r"[\\/]downloads[\\/]", re.IGNORECASE)
-_LOG_LABEL_PATTERN = re.compile(r"\b(?:file|path|process|image|sha1|sha256|sha512|ip|storyline|site)\s*:", re.IGNORECASE)
-_LOG_FIELDS = {"generic_full_log", "windows_full_log", "full_log", "raw_log"}
-_HASH_PATTERN = re.compile(r"\b(?:[a-f0-9]{128}|[a-f0-9]{64}|[a-f0-9]{40})\b", re.IGNORECASE)
-_IP_PATTERN = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
-_URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
-_EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-_LOG_VALUE_PATTERN = re.compile(
-    r"(?:^|[.\s])(?P<label>file|path|process|image)\s*:\s*(?P<value>.*?)"
-    r"(?=\s+(?:file|path|process|image|sha1|sha256|sha512|ip|storyline|site)\s*:|$)",
-    re.IGNORECASE,
-)
-
 
 class RetrieveAgent:
 
@@ -91,9 +21,6 @@ class RetrieveAgent:
         self.registry = registry or IncidentRegistry()
 
     def _incident_to_query(self, incident: Any, semantic: bool = False) -> str:
-        """Build the retrieval query. With semantic=True, identifiers that carry no
-        technique meaning (hosts, hashes, IPs, URLs, emails, IOC values) are left out,
-        since they only add noise to the embedding and the cross-encoder."""
 
         if isinstance(incident, str): return incident
 
@@ -105,7 +32,7 @@ class RetrieveAgent:
         def add(label: str, value: Any, limit: int = 240) -> None:
             if isinstance(value, (dict, list)) or value is None:
                 return
-            if semantic and label.casefold() in _NON_SEMANTIC_LABELS:
+            if semantic and label.casefold() in config._NON_SEMANTIC_LABELS:
                 return
             text = " ".join(str(value).split()).rstrip(".,;")
             if not text:
@@ -114,7 +41,7 @@ class RetrieveAgent:
                 signal_terms = {
                     token.casefold()
                     for token in re.findall(r"[A-Za-z][A-Za-z0-9.+_-]*", text)
-                    if token.casefold() not in _GENERIC_ALERT_TERMS
+                    if token.casefold() not in config._GENERIC_ALERT_TERMS
                 }
                 if len(signal_terms) < 2:
                     return
@@ -128,9 +55,9 @@ class RetrieveAgent:
             if isinstance(data, dict):
                 for key, value in data.items():
                     normalized_key = str(key).casefold()
-                    if normalized_key in _QUERY_FIELDS:
+                    if normalized_key in config._QUERY_FIELDS:
                         add(str(key), value)
-                    elif normalized_key in _IOC_COLLECTION_FIELDS and isinstance(value, list):
+                    elif normalized_key in config._IOC_COLLECTION_FIELDS and isinstance(value, list):
                         for item in value:
                             if isinstance(item, dict):
                                 add("ioc", item.get("ioc_value", item.get("value")))
@@ -139,16 +66,16 @@ class RetrieveAgent:
                                 add("ioc_tags", item.get("ioc_tags", item.get("tags")))
                             else:
                                 add("ioc", item)
-                    elif normalized_key in _LOG_FIELDS and isinstance(value, str):
+                    elif normalized_key in config._LOG_FIELDS and isinstance(value, str):
                         if semantic:
-                            add("log_message", _LOG_LABEL_PATTERN.split(value, maxsplit=1)[0])
-                        for match in _LOG_VALUE_PATTERN.finditer(value):
+                            add("log_message", config._LOG_LABEL_PATTERN.split(value, maxsplit=1)[0])
+                        for match in config._LOG_VALUE_PATTERN.finditer(value):
                             add(match.group("label"), match.group("value"))
                         for pattern, label in (
-                            (_HASH_PATTERN, "hash"),
-                            (_IP_PATTERN, "ip"),
-                            (_URL_PATTERN, "url"),
-                            (_EMAIL_PATTERN, "email"),
+                            (config._HASH_PATTERN, "hash"),
+                            (config._IP_PATTERN, "ip"),
+                            (config._URL_PATTERN, "url"),
+                            (config._EMAIL_PATTERN, "email"),
                         ):
                             for match in pattern.findall(value):
                                 add(label, match)
@@ -161,10 +88,10 @@ class RetrieveAgent:
 
         visit(incident)
         if semantic:
-            if _DOWNLOADS_PATH_PATTERN.search(json.dumps(incident, ensure_ascii=False, default=str)):
+            if config._DOWNLOADS_PATH_PATTERN.search(json.dumps(incident, ensure_ascii=False, default=str)):
                 add("origin", "downloaded by the user")
             parts = [
-                _FILE_NAME_PATTERN.sub(lambda m: _FILE_TYPES[m.group("ext").lower()], part)
+                config._FILE_NAME_PATTERN.sub(lambda m: config._FILE_TYPES[m.group("ext").lower()], part)
                 for part in parts
             ]
         query = "\n".join(parts)

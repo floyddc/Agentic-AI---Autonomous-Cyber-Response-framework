@@ -112,12 +112,11 @@ def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE, overlap: int = co
     return chunks
 
 
-_TITLE_PATTERN = re.compile(r"^#\s*(?P<title>.+?)(?:\s+##\s|\s*\?(?:\s|$)|$)")
 
 
 def _document_title(text: str) -> str:
     first_line = next((line.strip() for line in clean_retrieval_text(text).splitlines() if line.strip()), "")
-    match = _TITLE_PATTERN.match(first_line)
+    match = config._TITLE_PATTERN.match(first_line)
     return match.group("title").strip()[:160] if match else ""
 
 

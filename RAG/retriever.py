@@ -12,22 +12,13 @@ from .vector_store import get_collection
 
 logger = logging.getLogger(__name__)
 
-_TECHNIQUE_ID = re.compile(r"(?<![A-Za-z0-9])[Tt](\d{4})(?:[._](\d{3}))?(?!\d)")
-_TOKEN = re.compile(r"[a-z0-9]+")
-_LEXICAL_STOP_WORDS = {
-    "a", "an", "and", "are", "as", "at", "by", "detected", "detection",
-    "for", "from", "high", "in", "is", "of", "on", "or", "the", "to",
-    "with", "alert", "incident", "threat", "suspicious", "malicious",
-    "source", "description", "title", "file", "origin", "log", "message",
-    "security", "event", "user",
-}
 
 
 def _diversity_key(hit: dict) -> str:
     # the same MITRE technique can come from several sources/chunks: treat it as one result
     metadata = hit["metadata"]
     source = str(metadata.get("source") or "")
-    match = _TECHNIQUE_ID.search(source) or _TECHNIQUE_ID.search(hit["text"][:300])
+    match = config._TECHNIQUE_ID.search(source) or config._TECHNIQUE_ID.search(hit["text"][:300])
     if not match:
         return source
     return f"T{match.group(1)}" + (f".{match.group(2)}" if match.group(2) else "")
@@ -43,18 +34,18 @@ def _hit_key(hit: dict) -> str:
 
 
 def lexical_rank(query: str, hits: List[dict]) -> List[dict]:
-    """Rank the vector candidates with BM25 over informative query terms."""
+
     query_terms = [
-        token for token in _TOKEN.findall(query.casefold())
-        if token not in _LEXICAL_STOP_WORDS and len(token) > 1
+        token for token in config._TOKEN.findall(query.casefold())
+        if token not in config._LEXICAL_STOP_WORDS and len(token) > 1
     ]
     if not query_terms or not hits:
         return list(hits)
 
     documents = [
         [
-            token for token in _TOKEN.findall(hit["text"].casefold())
-            if token not in _LEXICAL_STOP_WORDS and len(token) > 1
+            token for token in config._TOKEN.findall(hit["text"].casefold())
+            if token not in config._LEXICAL_STOP_WORDS and len(token) > 1
         ]
         for hit in hits
     ]
@@ -115,9 +106,6 @@ def select_hits(
     return selected
 
 
-_RRF_K = 60
-
-
 def fuse_rankings(
     vector_hits: List[dict],
     reranked_hits: List[dict],
@@ -139,9 +127,9 @@ def fuse_rankings(
         hit["vector_rank"] = position
         hit["lexical_rank"] = lexical_position
         hit["fused_score"] = (
-            1 / (_RRF_K + position)
-            + rerank_weight / (_RRF_K + rank)
-            + lexical_weight / (_RRF_K + lexical_position)
+            1 / (config._RRF_K + position)
+            + rerank_weight / (config._RRF_K + rank)
+            + lexical_weight / (config._RRF_K + lexical_position)
         )
     return sorted(reranked_hits, key=lambda hit: hit["fused_score"], reverse=True)
 
@@ -297,6 +285,7 @@ def retrieve(
         })
 
     return ranked_hits
+
 
 def format_context(hits: List[dict]) -> str:
     if not hits:
